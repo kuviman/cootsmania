@@ -1,7 +1,15 @@
 use geng::prelude::*;
 
+#[derive(geng::Assets, Deserialize)]
+#[asset(json)]
+pub struct Level {
+    segments: Vec<[vec2<f32>; 2]>,
+}
+
 #[derive(geng::Assets)]
-pub struct Assets {}
+pub struct Assets {
+    level: Level,
+}
 
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
@@ -14,6 +22,7 @@ pub struct Config {
     pub player_radius: f32,
     pub max_speed: f32,
     pub max_backward_speed: f32,
+    pub collision_bounciness: f32,
 }
 
 pub struct Player {
@@ -117,11 +126,30 @@ impl geng::State for Game {
 
         player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
 
-        player.vel += vec2(1.0, 0.0).rotate(player.rot)
-            * self.config.acceleration
-            * input.accelerate
-            * delta_time;
         player.pos += player.vel * delta_time;
+        for &[p1, p2] in &self.assets.level.segments {
+            fn vector_from(p: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> vec2<f32> {
+                if vec2::dot(p - p1, p2 - p1) < 0.0 {
+                    return p1 - p;
+                }
+                if vec2::dot(p - p2, p1 - p2) < 0.0 {
+                    return p2 - p;
+                }
+                let n = (p2 - p1).rotate_90();
+                // dot(p + n * t - p1, n) = 0
+                // dot(p - p1, n) + dot(n, n) * t = 0
+                let t = vec2::dot(p1 - p, n) / vec2::dot(n, n);
+                n * t
+            }
+            let v = -vector_from(player.pos, p1, p2);
+            let penetration = self.config.player_radius - v.len();
+            let n = v.normalize_or_zero();
+            if penetration > 0.0 {
+                player.pos += n * penetration;
+                player.vel -=
+                    n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
+            }
+        }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
@@ -143,6 +171,13 @@ impl geng::State for Game {
                 Rgba::BLACK,
             ),
         );
+        for &[p1, p2] in &self.assets.level.segments {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
+            );
+        }
     }
 }
 
