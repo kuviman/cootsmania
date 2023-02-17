@@ -29,7 +29,9 @@ pub struct Config {
     pub max_backward_speed: f32,
     pub collision_bounciness: f32,
     pub camera_speed: f32,
-    pub cat_respawn_time: f32,
+    pub cat_move_time: f32,
+    pub cat_move_time_change: f32,
+    pub new_round_time: f32,
 }
 
 #[derive(clap::Parser)]

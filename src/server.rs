@@ -41,6 +41,7 @@ impl App {
                 .unwrap();
                 let mut cat_pos_index = 0;
                 let mut cat_pos = vec2::ZERO;
+                let mut cat_move_time = config.cat_move_time;
                 loop {
                     {
                         let mut state = state.lock().unwrap();
@@ -53,6 +54,9 @@ impl App {
                                     }
                                 }
                             }
+                            if eliminated.is_empty() {
+                                cat_move_time -= config.cat_move_time_change;
+                            }
                             for id in eliminated {
                                 for (&client_id, client) in &mut state.clients {
                                     if client_id == id {
@@ -63,12 +67,18 @@ impl App {
                                     }
                                 }
                             }
+
+                            // Everyone eliminated?
+                            if !state.clients.values().any(|client| client.pos.is_some()) {
+                                cat_move_time = config.new_round_time;
+                            }
                         } else {
                             for client in state.clients.values_mut() {
                                 let pos = vec2::ZERO;
                                 client.pos = Some(pos);
                                 client.sender.send(ServerMessage::YouHaveBeenRespawned(pos));
                             }
+                            cat_move_time = config.cat_move_time;
                         }
                         cat_pos_index = loop {
                             let index = thread_rng().gen_range(0..level.cat_locations.len());
@@ -84,7 +94,7 @@ impl App {
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_secs_f64(
-                        config.cat_respawn_time as f64,
+                        cat_move_time.max(0.0) as f64
                     ));
                 }
             }),
