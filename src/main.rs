@@ -3,6 +3,7 @@ use geng::prelude::*;
 mod game;
 mod interop;
 mod interpolation;
+#[cfg(not(target_arch = "wasm32"))]
 mod server;
 
 use interop::*;
