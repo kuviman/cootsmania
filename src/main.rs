@@ -1,15 +1,51 @@
 use geng::prelude::*;
 
-#[derive(geng::Assets, Deserialize)]
+#[derive(geng::Assets, Serialize, Deserialize)]
 #[asset(json)]
 pub struct Level {
     segments: Vec<[vec2<f32>; 2]>,
 }
 
-#[derive(geng::Assets)]
-pub struct Assets {
-    level: Level,
+const SNAP_DISTANCE: f32 = 0.5;
+
+fn vector_from(p: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> vec2<f32> {
+    if vec2::dot(p - p1, p2 - p1) < 0.0 {
+        return p1 - p;
+    }
+    if vec2::dot(p - p2, p1 - p2) < 0.0 {
+        return p2 - p;
+    }
+    let n = (p2 - p1).rotate_90();
+    // dot(p + n * t - p1, n) = 0
+    // dot(p - p1, n) + dot(n, n) * t = 0
+    let t = vec2::dot(p1 - p, n) / vec2::dot(n, n);
+    n * t
 }
+
+impl Level {
+    pub fn save(&self, path: impl AsRef<std::path::Path>) {
+        let file = std::fs::File::create(path).expect("Failed to create level file");
+        let writer = std::io::BufWriter::new(file);
+        serde_json::to_writer_pretty(writer, self).expect("Failed to serialize level")
+    }
+    pub fn snap(&self, pos: vec2<f32>) -> vec2<f32> {
+        self.segments
+            .iter()
+            .copied()
+            .flatten()
+            .filter(|&p| (pos - p).len() < SNAP_DISTANCE)
+            .min_by_key(|&p| r32((pos - p).len()))
+            .unwrap_or(pos)
+    }
+    pub fn hovered_segment(&self, pos: vec2<f32>) -> Option<usize> {
+        self.segments
+            .iter()
+            .position(|&[p1, p2]| vector_from(pos, p1, p2).len() < SNAP_DISTANCE)
+    }
+}
+
+#[derive(geng::Assets)]
+pub struct Assets {}
 
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
@@ -42,13 +78,24 @@ pub struct Game {
     config: Rc<Config>,
     player: Player,
     camera: geng::Camera2d,
+    level: Level,
+    args: Args,
+    start_drag: Option<vec2<f32>>,
+    framebuffer_size: vec2<f32>,
 }
 
 impl Game {
-    pub fn new(geng: &Geng, assets: &Rc<Assets>, config: &Rc<Config>) -> Self {
+    pub fn new(
+        geng: &Geng,
+        assets: &Rc<Assets>,
+        level: Level,
+        config: &Rc<Config>,
+        args: Args,
+    ) -> Self {
         Self {
             geng: geng.clone(),
             assets: assets.clone(),
+            level,
             config: config.clone(),
             player: Player {
                 pos: vec2::ZERO,
@@ -60,6 +107,9 @@ impl Game {
                 rotation: 0.0,
                 fov: 50.0,
             },
+            args,
+            start_drag: None,
+            framebuffer_size: vec2(1.0, 1.0),
         }
     }
 }
@@ -127,20 +177,7 @@ impl geng::State for Game {
         player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
 
         player.pos += player.vel * delta_time;
-        for &[p1, p2] in &self.assets.level.segments {
-            fn vector_from(p: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> vec2<f32> {
-                if vec2::dot(p - p1, p2 - p1) < 0.0 {
-                    return p1 - p;
-                }
-                if vec2::dot(p - p2, p1 - p2) < 0.0 {
-                    return p2 - p;
-                }
-                let n = (p2 - p1).rotate_90();
-                // dot(p + n * t - p1, n) = 0
-                // dot(p - p1, n) + dot(n, n) * t = 0
-                let t = vec2::dot(p1 - p, n) / vec2::dot(n, n);
-                n * t
-            }
+        for &[p1, p2] in &self.level.segments {
             let v = -vector_from(player.pos, p1, p2);
             let penetration = self.config.player_radius - v.len();
             let n = v.normalize_or_zero();
@@ -152,6 +189,7 @@ impl geng::State for Game {
         }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        self.framebuffer_size = framebuffer.size().map(|x| x as f32);
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
@@ -171,18 +209,98 @@ impl geng::State for Game {
                 Rgba::BLACK,
             ),
         );
-        for &[p1, p2] in &self.assets.level.segments {
+        for &[p1, p2] in &self.level.segments {
             self.geng.draw_2d(
                 framebuffer,
                 camera,
                 &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
             );
         }
+
+        let cursor_pos = self.camera.screen_to_world(
+            self.framebuffer_size,
+            self.geng.window().mouse_pos().map(|x| x as f32),
+        );
+        let snapped_cursor_pos = self.level.snap(cursor_pos);
+        if let Some(start) = self.start_drag {
+            let end = snapped_cursor_pos;
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::Segment::new(Segment(start, end), 0.1, Rgba::GRAY),
+            );
+        }
+        if self.args.editor {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::Quad::new(
+                    Aabb2::point(snapped_cursor_pos).extend_uniform(0.3),
+                    Rgba::RED,
+                ),
+            );
+            if let Some(index) = self.level.hovered_segment(cursor_pos) {
+                let [p1, p2] = self.level.segments[index];
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Segment::new(Segment(p1, p2), 0.2, Rgba::RED),
+                );
+            }
+        }
+    }
+
+    fn handle_event(&mut self, event: geng::Event) {
+        match event {
+            geng::Event::MouseDown {
+                position,
+                button: geng::MouseButton::Left,
+            } if self.args.editor => {
+                self.start_drag = Some(
+                    self.level.snap(
+                        self.camera
+                            .screen_to_world(self.framebuffer_size, position.map(|x| x as f32)),
+                    ),
+                );
+            }
+            geng::Event::MouseUp {
+                position,
+                button: geng::MouseButton::Left,
+            } if self.args.editor => {
+                if let Some(start) = self.start_drag.take() {
+                    let end = self.level.snap(
+                        self.camera
+                            .screen_to_world(self.framebuffer_size, position.map(|x| x as f32)),
+                    );
+                    if (start - end).len() > SNAP_DISTANCE {
+                        self.level.segments.push([start, end]);
+                    }
+                }
+            }
+            geng::Event::MouseDown {
+                position,
+                button: geng::MouseButton::Right,
+            } if self.args.editor => {
+                if let Some(index) = self.level.hovered_segment(
+                    self.camera
+                        .screen_to_world(self.framebuffer_size, position.map(|x| x as f32)),
+                ) {
+                    self.level.segments.remove(index);
+                }
+            }
+            geng::Event::KeyDown { key: geng::Key::S }
+                if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor => {}
+            _ => {
+                self.level.save(run_dir().join("level.json"));
+            }
+        }
     }
 }
 
 #[derive(clap::Parser)]
-struct Args {
+pub struct Args {
+    #[clap(long)]
+    editor: bool,
     #[clap(flatten)]
     geng: geng::CliArgs,
 }
@@ -210,7 +328,11 @@ fn main() {
                     .await
                     .expect("Failed to load config");
                 let config = Rc::new(config);
-                Game::new(&geng, &assets, &config)
+                let level: Level = geng
+                    .load_asset(run_dir().join("level.json"))
+                    .await
+                    .expect("Failed to load level");
+                Game::new(&geng, &assets, level, &config, args)
             }
         }),
     );
