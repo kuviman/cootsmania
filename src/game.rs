@@ -90,6 +90,7 @@ pub struct Game {
     start_drag: Option<vec2<f32>>,
     framebuffer_size: vec2<f32>,
     remote_players: HashMap<Id, RemotePlayer>,
+    cat_location: Option<usize>,
 }
 
 impl Game {
@@ -122,6 +123,7 @@ impl Game {
             start_drag: None,
             framebuffer_size: vec2(1.0, 1.0),
             remote_players: default(),
+            cat_location: None,
         }
     }
 
@@ -144,6 +146,9 @@ impl Game {
                 ServerMessage::Disconnect(id) => {
                     self.remote_players.remove(&id);
                 }
+                ServerMessage::UpdateCat(index) => {
+                    self.cat_location = index;
+                }
             }
         }
     }
@@ -153,11 +158,16 @@ impl Game {
         framebuffer: &mut ugli::Framebuffer,
         camera: &geng::Camera2d,
         player: &Player,
+        me: bool,
     ) {
         self.geng.draw_2d(
             framebuffer,
             camera,
-            &draw_2d::Ellipse::circle(player.pos, self.config.player_radius, Rgba::WHITE),
+            &draw_2d::Ellipse::circle(
+                player.pos,
+                self.config.player_radius,
+                if me { Rgba::GREEN } else { Rgba::GRAY },
+            ),
         );
         self.geng.draw_2d(
             framebuffer,
@@ -259,10 +269,17 @@ impl geng::State for Game {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
-        self.draw_player(framebuffer, camera, &self.player);
         for player in self.remote_players.values() {
-            self.draw_player(framebuffer, camera, &player.get());
+            self.draw_player(framebuffer, camera, &player.get(), false);
         }
+        if let Some(index) = self.cat_location {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::Ellipse::circle(self.level.cat_locations[index], 1.0, Rgba::WHITE),
+            );
+        }
+        self.draw_player(framebuffer, camera, &self.player, true);
         for &[p1, p2] in &self.level.segments {
             self.geng.draw_2d(
                 framebuffer,
@@ -299,6 +316,13 @@ impl geng::State for Game {
                     framebuffer,
                     camera,
                     &draw_2d::Segment::new(Segment(p1, p2), 0.2, Rgba::RED),
+                );
+            }
+            for &p in &self.level.cat_locations {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Quad::new(Aabb2::point(p).extend_uniform(0.3), Rgba::GREEN),
                 );
             }
         }
@@ -346,6 +370,24 @@ impl geng::State for Game {
                 if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor =>
             {
                 self.level.save(run_dir().join("level.json"));
+            }
+            geng::Event::KeyDown { key: geng::Key::E } if self.args.editor => {
+                let pos = self.camera.screen_to_world(
+                    self.framebuffer_size,
+                    self.geng.window().mouse_pos().map(|x| x as f32),
+                );
+                self.level.cat_locations.push(pos);
+            }
+            geng::Event::KeyDown {
+                key: geng::Key::Delete,
+            } if self.args.editor => {
+                let pos = self.camera.screen_to_world(
+                    self.framebuffer_size,
+                    self.geng.window().mouse_pos().map(|x| x as f32),
+                );
+                self.level
+                    .cat_locations
+                    .retain(|&p| (p - pos).len() > SNAP_DISTANCE);
             }
             _ => {}
         }

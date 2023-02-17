@@ -16,12 +16,31 @@ impl State {
 
 pub struct App {
     state: Arc<Mutex<State>>,
+    #[allow(dead_code)]
+    background_thread: std::thread::JoinHandle<()>,
 }
 
 impl App {
     pub fn new() -> Self {
+        let state = Arc::new(Mutex::new(State::new()));
         Self {
-            state: Arc::new(Mutex::new(State::new())),
+            state: state.clone(),
+            background_thread: std::thread::spawn(move || {
+                let level: Level = serde_json::from_reader(
+                    std::fs::File::open(run_dir().join("level.json")).unwrap(),
+                )
+                .unwrap();
+                loop {
+                    {
+                        let cat_location = thread_rng().gen_range(0..level.cat_locations.len());
+                        let mut state = state.lock().unwrap();
+                        for sender in state.senders.values_mut() {
+                            sender.send(ServerMessage::UpdateCat(Some(cat_location)));
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                }
+            }),
         }
     }
 }

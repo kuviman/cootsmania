@@ -20,4 +20,5 @@ pub enum ServerMessage {
     Pong,
     UpdatePlayer(Id, Player),
     Disconnect(Id),
+    UpdateCat(Option<usize>),
 }

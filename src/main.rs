@@ -13,6 +13,7 @@ use interpolation::*;
 #[asset(json)]
 pub struct Level {
     segments: Vec<[vec2<f32>; 2]>,
+    cat_locations: Vec<vec2<f32>>,
 }
 
 #[derive(geng::Assets, Deserialize)]
