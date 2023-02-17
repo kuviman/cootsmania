@@ -202,20 +202,28 @@ impl geng::State for Game {
         let input = PlayerInput {
             rotate: {
                 let mut value: f32 = 0.0;
-                if self.geng.window().is_key_pressed(geng::Key::Left) {
+                if self.geng.window().is_key_pressed(geng::Key::Left)
+                    || self.geng.window().is_key_pressed(geng::Key::A)
+                {
                     value += 1.0;
                 }
-                if self.geng.window().is_key_pressed(geng::Key::Right) {
+                if self.geng.window().is_key_pressed(geng::Key::Right)
+                    || self.geng.window().is_key_pressed(geng::Key::D)
+                {
                     value -= 1.0;
                 }
                 value.clamp(-1.0, 1.0)
             },
             accelerate: {
                 let mut value: f32 = 0.0;
-                if self.geng.window().is_key_pressed(geng::Key::Down) {
+                if self.geng.window().is_key_pressed(geng::Key::Down)
+                    || self.geng.window().is_key_pressed(geng::Key::S)
+                {
                     value -= 1.0;
                 }
-                if self.geng.window().is_key_pressed(geng::Key::Up) {
+                if self.geng.window().is_key_pressed(geng::Key::Up)
+                    || self.geng.window().is_key_pressed(geng::Key::W)
+                {
                     value += 1.0;
                 }
                 value.clamp(-1.0, 1.0)
