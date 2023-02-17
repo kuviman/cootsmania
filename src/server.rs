@@ -44,11 +44,21 @@ impl App {
                     {
                         let mut state = state.lock().unwrap();
                         if state.clients.values().any(|client| client.pos.is_some()) {
-                            for client in state.clients.values_mut() {
+                            let mut eliminated = Vec::new();
+                            for (&id, client) in &state.clients {
                                 if let Some(client_pos) = client.pos {
                                     if (client_pos - cat_pos).len() > config.player_radius * 2.0 {
-                                        client.sender.send(ServerMessage::YouHaveBeenEliminated);
+                                        eliminated.push(id);
+                                    }
+                                }
+                            }
+                            for id in eliminated {
+                                for (&client_id, client) in &mut state.clients {
+                                    if client_id == id {
                                         client.pos = None;
+                                        client.sender.send(ServerMessage::YouHaveBeenEliminated);
+                                    } else {
+                                        client.sender.send(ServerMessage::UpdatePlayer(id, None));
                                     }
                                 }
                             }
@@ -67,7 +77,9 @@ impl App {
                                 .send(ServerMessage::UpdateCat(Some(cat_pos_index)));
                         }
                     }
-                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    std::thread::sleep(std::time::Duration::from_secs_f64(
+                        config.cat_respawn_time as f64,
+                    ));
                 }
             }),
         }
@@ -102,17 +114,17 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
                     .send(ServerMessage::Pong);
             }
             ClientMessage::UpdatePlayer(player) => {
-                for (id, client) in &mut state.clients {
-                    if *id == self.id {
-                        if client.pos.is_none() {
-                            // error!("YO, someone is cheating!");
-                        } else {
+                if state.clients[&self.id].pos.is_none() {
+                    // Ignore, is you cheating???
+                } else {
+                    for (id, client) in &mut state.clients {
+                        if *id == self.id {
                             client.pos = Some(player.pos);
+                        } else {
+                            client
+                                .sender
+                                .send(ServerMessage::UpdatePlayer(self.id, Some(player.clone())));
                         }
-                    } else {
-                        client
-                            .sender
-                            .send(ServerMessage::UpdatePlayer(self.id, player.clone()));
                     }
                 }
             }

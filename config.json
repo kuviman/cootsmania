@@ -8,5 +8,6 @@
     "max_backward_speed": 5,
     "player_radius": 1,
     "collision_bounciness": 0.3,
-    "camera_speed": 5
+    "camera_speed": 5,
+    "cat_respawn_time": 10
 }

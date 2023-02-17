@@ -133,12 +133,17 @@ impl Game {
                             .send(ClientMessage::UpdatePlayer(player.clone()));
                     }
                 }
-                ServerMessage::UpdatePlayer(id, player) => match self.remote_players.entry(id) {
-                    std::collections::hash_map::Entry::Occupied(mut entry) => {
-                        entry.get_mut().server_update(player);
-                    }
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(RemotePlayer::new(player));
+                ServerMessage::UpdatePlayer(id, player) => match player {
+                    Some(player) => match self.remote_players.entry(id) {
+                        std::collections::hash_map::Entry::Occupied(mut entry) => {
+                            entry.get_mut().server_update(player);
+                        }
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            entry.insert(RemotePlayer::new(player));
+                        }
+                    },
+                    None => {
+                        self.remote_players.remove(&id);
                     }
                 },
                 ServerMessage::Disconnect(id) => {

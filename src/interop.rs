@@ -18,7 +18,7 @@ pub enum ClientMessage {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerMessage {
     Pong,
-    UpdatePlayer(Id, Player),
+    UpdatePlayer(Id, Option<Player>),
     Disconnect(Id),
     UpdateCat(Option<usize>),
     YouHaveBeenEliminated,
