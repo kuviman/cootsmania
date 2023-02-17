@@ -26,6 +26,7 @@ pub struct Config {
     pub max_speed: f32,
     pub max_backward_speed: f32,
     pub collision_bounciness: f32,
+    pub camera_speed: f32,
 }
 
 #[derive(clap::Parser)]

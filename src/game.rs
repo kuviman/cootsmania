@@ -249,6 +249,9 @@ impl geng::State for Game {
                     n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
             }
         }
+
+        self.camera.center += (self.player.pos - self.camera.center)
+            * (self.config.camera_speed * delta_time).min(1.0);
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
