@@ -39,6 +39,7 @@ impl App {
                     std::fs::File::open(run_dir().join("config.json")).unwrap(),
                 )
                 .unwrap();
+                let mut cat_pos_index = 0;
                 let mut cat_pos = vec2::ZERO;
                 loop {
                     {
@@ -69,7 +70,12 @@ impl App {
                                 client.sender.send(ServerMessage::YouHaveBeenRespawned(pos));
                             }
                         }
-                        let cat_pos_index = thread_rng().gen_range(0..level.cat_locations.len());
+                        cat_pos_index = loop {
+                            let index = thread_rng().gen_range(0..level.cat_locations.len());
+                            if index != cat_pos_index {
+                                break index;
+                            }
+                        };
                         cat_pos = level.cat_locations[cat_pos_index];
                         for client in state.clients.values_mut() {
                             client
