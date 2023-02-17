@@ -83,7 +83,7 @@ pub struct Game {
     assets: Rc<Assets>,
     config: Rc<Config>,
     connection: Connection,
-    player: Player,
+    player: Option<Player>,
     camera: geng::Camera2d,
     level: Level,
     args: Args,
@@ -109,11 +109,7 @@ impl Game {
             level,
             connection,
             config: config.clone(),
-            player: Player {
-                pos: vec2::ZERO,
-                vel: vec2::ZERO,
-                rot: 0.0,
-            },
+            player: None,
             camera: geng::Camera2d {
                 center: vec2::ZERO,
                 rotation: 0.0,
@@ -132,8 +128,10 @@ impl Game {
             match message {
                 ServerMessage::Pong => {
                     self.connection.send(ClientMessage::Ping);
-                    self.connection
-                        .send(ClientMessage::UpdatePlayer(self.player.clone()));
+                    if let Some(player) = &self.player {
+                        self.connection
+                            .send(ClientMessage::UpdatePlayer(player.clone()));
+                    }
                 }
                 ServerMessage::UpdatePlayer(id, player) => match self.remote_players.entry(id) {
                     std::collections::hash_map::Entry::Occupied(mut entry) => {
@@ -148,6 +146,16 @@ impl Game {
                 }
                 ServerMessage::UpdateCat(index) => {
                     self.cat_location = index;
+                }
+                ServerMessage::YouHaveBeenEliminated => {
+                    self.player = None;
+                }
+                ServerMessage::YouHaveBeenRespawned(pos) => {
+                    self.player = Some(Player {
+                        pos,
+                        vel: vec2::ZERO,
+                        rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
+                    });
                 }
             }
         }
@@ -214,55 +222,56 @@ impl geng::State for Game {
             },
         };
 
-        let player = &mut self.player;
-        player.rot += input.rotate * self.config.rotation_speed * delta_time;
-        let dir = vec2(1.0, 0.0).rotate(player.rot);
+        if let Some(player) = &mut self.player {
+            player.rot += input.rotate * self.config.rotation_speed * delta_time;
+            let dir = vec2(1.0, 0.0).rotate(player.rot);
 
-        let mut forward_vel = vec2::dot(dir, player.vel);
-        let forward_acceleration = if input.accelerate > 0.0 {
-            let target_forward_vel = input.accelerate * self.config.max_speed;
-            if target_forward_vel > forward_vel {
-                if forward_vel < 0.0 {
-                    self.config.deceleration
+            let mut forward_vel = vec2::dot(dir, player.vel);
+            let forward_acceleration = if input.accelerate > 0.0 {
+                let target_forward_vel = input.accelerate * self.config.max_speed;
+                if target_forward_vel > forward_vel {
+                    if forward_vel < 0.0 {
+                        self.config.deceleration
+                    } else {
+                        self.config.acceleration
+                    }
                 } else {
-                    self.config.acceleration
-                }
-            } else {
-                -self.config.deceleration
-            }
-        } else {
-            let target_forward_vel = input.accelerate * self.config.max_backward_speed;
-            if target_forward_vel < forward_vel {
-                if forward_vel > 0.0 {
                     -self.config.deceleration
-                } else {
-                    -self.config.backward_acceleration
                 }
             } else {
-                self.config.deceleration
+                let target_forward_vel = input.accelerate * self.config.max_backward_speed;
+                if target_forward_vel < forward_vel {
+                    if forward_vel > 0.0 {
+                        -self.config.deceleration
+                    } else {
+                        -self.config.backward_acceleration
+                    }
+                } else {
+                    self.config.deceleration
+                }
+            };
+            forward_vel += forward_acceleration * delta_time;
+
+            let mut drift_vel = vec2::skew(dir, player.vel);
+            drift_vel -= drift_vel.signum() * self.config.drift_deceleration * delta_time;
+
+            player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
+
+            player.pos += player.vel * delta_time;
+            for &[p1, p2] in &self.level.segments {
+                let v = -vector_from(player.pos, p1, p2);
+                let penetration = self.config.player_radius - v.len();
+                let n = v.normalize_or_zero();
+                if penetration > 0.0 {
+                    player.pos += n * penetration;
+                    player.vel -=
+                        n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
+                }
             }
-        };
-        forward_vel += forward_acceleration * delta_time;
 
-        let mut drift_vel = vec2::skew(dir, player.vel);
-        drift_vel -= drift_vel.signum() * self.config.drift_deceleration * delta_time;
-
-        player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
-
-        player.pos += player.vel * delta_time;
-        for &[p1, p2] in &self.level.segments {
-            let v = -vector_from(player.pos, p1, p2);
-            let penetration = self.config.player_radius - v.len();
-            let n = v.normalize_or_zero();
-            if penetration > 0.0 {
-                player.pos += n * penetration;
-                player.vel -=
-                    n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
-            }
+            self.camera.center += (player.pos - self.camera.center)
+                * (self.config.camera_speed * delta_time).min(1.0);
         }
-
-        self.camera.center += (self.player.pos - self.camera.center)
-            * (self.config.camera_speed * delta_time).min(1.0);
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
@@ -279,7 +288,9 @@ impl geng::State for Game {
                 &draw_2d::Ellipse::circle(self.level.cat_locations[index], 1.0, Rgba::WHITE),
             );
         }
-        self.draw_player(framebuffer, camera, &self.player, true);
+        if let Some(player) = &self.player {
+            self.draw_player(framebuffer, camera, player, true);
+        }
         for &[p1, p2] in &self.level.segments {
             self.geng.draw_2d(
                 framebuffer,

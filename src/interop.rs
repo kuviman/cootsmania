@@ -21,4 +21,6 @@ pub enum ServerMessage {
     UpdatePlayer(Id, Player),
     Disconnect(Id),
     UpdateCat(Option<usize>),
+    YouHaveBeenEliminated,
+    YouHaveBeenRespawned(vec2<f32>),
 }
