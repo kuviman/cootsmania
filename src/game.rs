@@ -18,6 +18,7 @@ fn vector_from(p: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> vec2<f32> {
 
 impl Level {
     pub fn save(&self, path: impl AsRef<std::path::Path>) {
+        info!("Saving the level");
         let file = std::fs::File::create(path).expect("Failed to create level file");
         let writer = std::io::BufWriter::new(file);
         serde_json::to_writer_pretty(writer, self).expect("Failed to serialize level")
@@ -342,10 +343,11 @@ impl geng::State for Game {
                 }
             }
             geng::Event::KeyDown { key: geng::Key::S }
-                if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor => {}
-            _ => {
+                if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor =>
+            {
                 self.level.save(run_dir().join("level.json"));
             }
+            _ => {}
         }
     }
 }
