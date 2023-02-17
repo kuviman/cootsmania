@@ -1,0 +1,10 @@
+{
+    "rotation_speed": 5,
+    "acceleration": 10,
+    "backward_acceleration": 5,
+    "deceleration": 10,
+    "drift_deceleration": 10,
+    "max_speed": 20,
+    "max_backward_speed": 5,
+    "player_radius": 1
+}
