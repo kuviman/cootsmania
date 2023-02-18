@@ -32,6 +32,8 @@ pub struct Config {
     pub cat_move_time: f32,
     pub cat_move_time_change: f32,
     pub new_round_time: f32,
+    pub camera_fov: f32,
+    pub arrow_size: f32,
 }
 
 #[derive(clap::Parser)]

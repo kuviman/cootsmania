@@ -44,6 +44,7 @@ pub struct Assets {
     map_floor: ugli::Texture,
     map_furniture: ugli::Texture,
     coots: ugli::Texture,
+    arrow: ugli::Texture,
 }
 
 pub struct PlayerInput {
@@ -121,7 +122,7 @@ impl Game {
             camera: geng::Camera2d {
                 center: vec2::ZERO,
                 rotation: 0.0,
-                fov: 50.0,
+                fov: config.camera_fov,
             },
             args,
             start_drag: None,
@@ -344,6 +345,7 @@ impl geng::State for Game {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
+        let camera_aabb = camera.view_area(self.framebuffer_size).bounding_box();
 
         let texture_pos = Aabb2::point(vec2::ZERO).extend_symmetric({
             let size = self.assets.map_floor.size().map(|x| x as f32);
@@ -368,6 +370,22 @@ impl geng::State for Game {
                         &self.assets.coots,
                     ),
                 );
+                if !camera_aabb.contains(pos) {
+                    let aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
+                    let arrow_pos = vec2(
+                        pos.x.clamp(aabb.min.x, aabb.max.x),
+                        pos.y.clamp(aabb.min.y, aabb.max.y),
+                    );
+
+                    self.geng.draw_2d(
+                        framebuffer,
+                        camera,
+                        &draw_2d::TexturedQuad::unit(&self.assets.arrow)
+                            .scale_uniform(self.config.arrow_size)
+                            .rotate((pos - arrow_pos).arg())
+                            .translate(arrow_pos),
+                    );
+                }
             } else {
                 error!("Cat location not found!");
             }
@@ -451,15 +469,15 @@ impl geng::State for Game {
             );
         }
 
-        if self.args.editor {
-            for &[p1, p2] in &self.level.segments {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
-                );
-            }
+        for &[p1, p2] in &self.level.segments {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
+            );
+        }
 
+        if self.args.editor {
             let cursor_pos = self.camera.screen_to_world(
                 self.framebuffer_size,
                 self.geng.window().mouse_pos().map(|x| x as f32),
