@@ -41,11 +41,11 @@ impl Zero for vec3<f32> {
     const ZERO: Self = vec3::ZERO;
 }
 
-const MIN_ITERPOLATION_TIME: f32 = 0.05;
+const MIN_INTERPOLATION_TIME: f32 = 0.05;
 
 impl<T: Mul<f32, Output = T> + Add<Output = T> + Sub<Output = T> + Copy + Zero> Interpolated<T> {
     pub fn new(p: T, v: T) -> Self {
-        let interpolation_time = MIN_ITERPOLATION_TIME;
+        let interpolation_time = MIN_INTERPOLATION_TIME;
         Self {
             a: T::ZERO,
             b: T::ZERO,
@@ -65,7 +65,7 @@ impl<T: Mul<f32, Output = T> + Add<Output = T> + Sub<Output = T> + Copy + Zero> 
     pub fn server_update(&mut self, p2: T, v2: T) {
         let p1 = self.get();
         let v1 = self.get_derivative();
-        let interpolation_time = (self.t * 1.5).max(MIN_ITERPOLATION_TIME);
+        let interpolation_time = (self.t * 1.5).max(MIN_INTERPOLATION_TIME);
         // let p2 = p2 + v2 * interpolation_time; // Prediction
         let d = p1;
         let c = v1 * interpolation_time;
