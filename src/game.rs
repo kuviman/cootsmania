@@ -170,6 +170,7 @@ impl Game {
                 }
                 ServerMessage::YouHaveBeenEliminated => {
                     self.player = None;
+                    self.text = Some(("You have been eliminated".to_owned(), 0.0));
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
                     self.score = 0;
@@ -179,6 +180,7 @@ impl Game {
                         vel: vec2::ZERO,
                         rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                     });
+                    self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
                 }
                 ServerMessage::YouScored(score) => {
                     self.score += score;
@@ -394,6 +396,19 @@ impl geng::State for Game {
                 self.cat_move_time.max(0.0).ceil() as i64,
             ),
             vec2(0.0, 4.0),
+            geng::TextAlign::CENTER,
+            1.0,
+            Rgba::GRAY,
+        );
+        self.geng.default_font().draw(
+            framebuffer,
+            ui_camera,
+            if self.player.is_some() {
+                "go to coots!"
+            } else {
+                "wait for current game to finish"
+            },
+            vec2(0.0, -4.0),
             geng::TextAlign::CENTER,
             1.0,
             Rgba::GRAY,
