@@ -345,7 +345,10 @@ impl geng::State for Game {
         self.geng.default_font().draw(
             framebuffer,
             ui_camera,
-            &format!("Cat moves in {}s", self.cat_move_time.max(0.0) as i64),
+            &format!(
+                "Cat moves in {}s",
+                self.cat_move_time.max(0.0).ceil() as i64,
+            ),
             vec2(0.0, 4.0),
             geng::TextAlign::CENTER,
             1.0,
