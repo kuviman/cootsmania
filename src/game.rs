@@ -202,17 +202,21 @@ impl Game {
             ),
         );
     }
-}
 
-impl geng::State for Game {
-    fn update(&mut self, delta_time: f64) {
-        let delta_time = delta_time as f32;
+    fn update_my_player(&mut self, delta_time: f32) {
+        let Some(player) = &mut self.player else { return };
 
-        self.cat_move_time -= delta_time;
+        self.camera.center +=
+            (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
 
-        self.update_connection();
-        for player in self.remote_players.values_mut() {
-            player.update(delta_time);
+        if player.vel.len() < 1e-5 {
+            if let Some(index) = self.cat_location {
+                if let Some(&pos) = self.level.cat_locations.get(index) {
+                    if (player.pos - pos).len() < self.config.player_radius * 2.0 {
+                        return;
+                    }
+                }
+            }
         }
 
         let input = PlayerInput {
@@ -246,56 +250,69 @@ impl geng::State for Game {
             },
         };
 
-        if let Some(player) = &mut self.player {
-            player.rot += input.rotate * self.config.rotation_speed * delta_time;
-            let dir = vec2(1.0, 0.0).rotate(player.rot);
+        player.rot += input.rotate * self.config.rotation_speed * delta_time;
+        let dir = vec2(1.0, 0.0).rotate(player.rot);
 
-            let mut forward_vel = vec2::dot(dir, player.vel);
-            let forward_acceleration = if input.accelerate > 0.0 {
-                let target_forward_vel = input.accelerate * self.config.max_speed;
-                if target_forward_vel > forward_vel {
-                    if forward_vel < 0.0 {
-                        self.config.deceleration
-                    } else {
-                        self.config.acceleration
-                    }
+        let mut forward_vel = vec2::dot(dir, player.vel);
+        let (target_forward_vel, forward_acceleration) = if input.accelerate > 0.0 {
+            let target_forward_vel = input.accelerate * self.config.max_speed;
+            let forward_acceleration = if target_forward_vel > forward_vel {
+                if forward_vel < 0.0 {
+                    self.config.deceleration
                 } else {
-                    -self.config.deceleration
+                    self.config.acceleration
                 }
             } else {
-                let target_forward_vel = input.accelerate * self.config.max_backward_speed;
-                if target_forward_vel < forward_vel {
-                    if forward_vel > 0.0 {
-                        -self.config.deceleration
-                    } else {
-                        -self.config.backward_acceleration
-                    }
-                } else {
-                    self.config.deceleration
-                }
+                -self.config.deceleration
             };
-            forward_vel += forward_acceleration * delta_time;
-
-            let mut drift_vel = vec2::skew(dir, player.vel);
-            drift_vel -= drift_vel.signum() * self.config.drift_deceleration * delta_time;
-
-            player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
-
-            player.pos += player.vel * delta_time;
-            for &[p1, p2] in &self.level.segments {
-                let v = -vector_from(player.pos, p1, p2);
-                let penetration = self.config.player_radius - v.len();
-                let n = v.normalize_or_zero();
-                if penetration > 0.0 {
-                    player.pos += n * penetration;
-                    player.vel -=
-                        n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
+            (target_forward_vel, forward_acceleration)
+        } else {
+            let target_forward_vel = input.accelerate * self.config.max_backward_speed;
+            let forward_acceleration = if target_forward_vel < forward_vel {
+                if forward_vel > 0.0 {
+                    -self.config.deceleration
+                } else {
+                    -self.config.backward_acceleration
                 }
-            }
+            } else {
+                self.config.deceleration
+            };
+            (target_forward_vel, forward_acceleration)
+        };
+        forward_vel +=
+            (target_forward_vel - forward_vel).clamp_abs(forward_acceleration.abs() * delta_time);
 
-            self.camera.center += (player.pos - self.camera.center)
-                * (self.config.camera_speed * delta_time).min(1.0);
+        let mut drift_vel = vec2::skew(dir, player.vel);
+        drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
+
+        player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
+
+        player.pos += player.vel * delta_time;
+        for &[p1, p2] in &self.level.segments {
+            let v = -vector_from(player.pos, p1, p2);
+            let penetration = self.config.player_radius - v.len();
+            let n = v.normalize_or_zero();
+            if penetration > 0.0 {
+                player.pos += n * penetration;
+                player.vel -=
+                    n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
+            }
         }
+    }
+}
+
+impl geng::State for Game {
+    fn update(&mut self, delta_time: f64) {
+        let delta_time = delta_time as f32;
+
+        self.cat_move_time -= delta_time;
+
+        self.update_connection();
+        for player in self.remote_players.values_mut() {
+            player.update(delta_time);
+        }
+
+        self.update_my_player(delta_time);
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
