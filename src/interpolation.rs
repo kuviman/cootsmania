@@ -66,7 +66,7 @@ impl<T: Mul<f32, Output = T> + Add<Output = T> + Sub<Output = T> + Copy + Zero> 
         let p1 = self.get();
         let v1 = self.get_derivative();
         let interpolation_time = (self.t * 1.5).max(MIN_ITERPOLATION_TIME);
-        let p2 = p2 + v2 * interpolation_time;
+        // let p2 = p2 + v2 * interpolation_time; // Prediction
         let d = p1;
         let c = v1 * interpolation_time;
         let b = p2 * 3.0 - c * 2.0 - d * 3.0 - v2 * interpolation_time;
