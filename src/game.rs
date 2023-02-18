@@ -40,7 +40,10 @@ impl Level {
 }
 
 #[derive(geng::Assets)]
-pub struct Assets {}
+pub struct Assets {
+    map_floor: ugli::Texture,
+    map_furniture: ugli::Texture,
+}
 
 pub struct PlayerInput {
     rotate: f32,     // -1 .. 1
@@ -291,41 +294,64 @@ impl geng::State for Game {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
+
+        let texture_pos = Aabb2::point(vec2::ZERO).extend_symmetric({
+            let size = self.assets.map_floor.size().map(|x| x as f32);
+            vec2(size.x / size.y, 1.0) * 10.0
+        });
+        self.geng.draw_2d(
+            framebuffer,
+            camera,
+            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_floor),
+        );
+
         for player in self.remote_players.values() {
             self.draw_player(framebuffer, camera, &player.get(), false);
         }
         if let Some(index) = self.cat_location {
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::Ellipse::circle(self.level.cat_locations[index], 1.0, Rgba::WHITE),
-            );
+            if let Some(&pos) = self.level.cat_locations.get(index) {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Ellipse::circle(pos, 1.0, Rgba::WHITE),
+                );
+            } else {
+                error!("Cat location not found!");
+            }
         }
         if let Some(player) = &self.player {
             self.draw_player(framebuffer, camera, player, true);
         }
-        for &[p1, p2] in &self.level.segments {
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
-            );
-        }
 
-        let cursor_pos = self.camera.screen_to_world(
-            self.framebuffer_size,
-            self.geng.window().mouse_pos().map(|x| x as f32),
+        self.geng.draw_2d(
+            framebuffer,
+            camera,
+            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
         );
-        let snapped_cursor_pos = self.level.snap(cursor_pos);
-        if let Some(start) = self.start_drag {
-            let end = snapped_cursor_pos;
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::Segment::new(Segment(start, end), 0.1, Rgba::GRAY),
-            );
-        }
+
         if self.args.editor {
+            for &[p1, p2] in &self.level.segments {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
+                );
+            }
+
+            let cursor_pos = self.camera.screen_to_world(
+                self.framebuffer_size,
+                self.geng.window().mouse_pos().map(|x| x as f32),
+            );
+            let snapped_cursor_pos = self.level.snap(cursor_pos);
+            if let Some(start) = self.start_drag {
+                let end = snapped_cursor_pos;
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Segment::new(Segment(start, end), 0.1, Rgba::GRAY),
+                );
+            }
+
             self.geng.draw_2d(
                 framebuffer,
                 camera,
