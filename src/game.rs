@@ -43,6 +43,7 @@ impl Level {
 pub struct Assets {
     map_floor: ugli::Texture,
     map_furniture: ugli::Texture,
+    coots: ugli::Texture,
 }
 
 pub struct PlayerInput {
@@ -95,6 +96,9 @@ pub struct Game {
     remote_players: HashMap<Id, RemotePlayer>,
     cat_location: Option<usize>,
     cat_move_time: f32,
+    text: Option<(String, f32)>,
+    score: i32,
+    placement: usize,
 }
 
 impl Game {
@@ -125,6 +129,9 @@ impl Game {
             remote_players: default(),
             cat_location: None,
             cat_move_time: 0.0,
+            text: None,
+            score: 0,
+            placement: 0,
         }
     }
 
@@ -165,11 +172,20 @@ impl Game {
                     self.player = None;
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
+                    self.score = 0;
+                    self.placement = 0;
                     self.player = Some(Player {
                         pos,
                         vel: vec2::ZERO,
                         rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                     });
+                }
+                ServerMessage::YouScored(score) => {
+                    self.score += score;
+                    self.text = Some((format!("+{score}"), 0.0));
+                }
+                ServerMessage::UpdatePlacement(placment) => {
+                    self.placement = placment;
                 }
             }
         }
@@ -313,6 +329,13 @@ impl geng::State for Game {
         }
 
         self.update_my_player(delta_time);
+
+        if let Some((_text, time)) = &mut self.text {
+            *time += delta_time;
+            if *time > 1.0 {
+                self.text = None;
+            }
+        }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
@@ -338,7 +361,10 @@ impl geng::State for Game {
                 self.geng.draw_2d(
                     framebuffer,
                     camera,
-                    &draw_2d::Ellipse::circle(pos, 1.0, Rgba::WHITE),
+                    &draw_2d::TexturedQuad::new(
+                        Aabb2::point(pos).extend_uniform(self.config.player_radius),
+                        &self.assets.coots,
+                    ),
                 );
             } else {
                 error!("Cat location not found!");
@@ -359,11 +385,12 @@ impl geng::State for Game {
             rotation: 0.0,
             fov: 10.0,
         };
+        let ui_aabb = ui_camera.view_area(self.framebuffer_size).bounding_box();
         self.geng.default_font().draw(
             framebuffer,
             ui_camera,
             &format!(
-                "Cat moves in {}s",
+                "coots moves in {}s",
                 self.cat_move_time.max(0.0).ceil() as i64,
             ),
             vec2(0.0, 4.0),
@@ -371,6 +398,43 @@ impl geng::State for Game {
             1.0,
             Rgba::GRAY,
         );
+        if self.placement != 0 {
+            self.geng.default_font().draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &format!("#{}", self.placement),
+                ui_aabb.bottom_right() + vec2(-1.0, 2.0),
+                geng::TextAlign::RIGHT,
+                1.0,
+                Rgba::WHITE,
+                0.05,
+                Rgba::BLACK,
+            );
+        }
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &format!("score: {}", self.score),
+            ui_aabb.bottom_right() + vec2(-1.0, 1.0),
+            geng::TextAlign::RIGHT,
+            0.7,
+            Rgba::WHITE,
+            0.01,
+            Rgba::BLACK,
+        );
+        if let Some((ref text, t)) = self.text {
+            self.geng.default_font().draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &text,
+                vec2(0.0, 2.0),
+                geng::TextAlign::CENTER,
+                1.0,
+                Rgba::WHITE,
+                0.05,
+                Rgba::BLACK,
+            );
+        }
 
         if self.args.editor {
             for &[p1, p2] in &self.level.segments {

@@ -26,4 +26,6 @@ pub enum ServerMessage {
     },
     YouHaveBeenEliminated,
     YouHaveBeenRespawned(vec2<f32>),
+    YouScored(i32),
+    UpdatePlacement(usize),
 }
