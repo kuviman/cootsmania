@@ -12,6 +12,6 @@
     "cat_move_time": 10,
     "cat_move_time_change": 0.5,
     "new_round_time": 10,
-    "camera_fov": 30,
-    "arrow_size": 3
+    "camera_fov": 20,
+    "arrow_size": 1
 }
