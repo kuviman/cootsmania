@@ -20,7 +20,10 @@ pub enum ServerMessage {
     Pong,
     UpdatePlayer(Id, Option<Player>),
     Disconnect(Id),
-    UpdateCat(Option<usize>),
+    UpdateCat {
+        location: Option<usize>,
+        move_time: f32,
+    },
     YouHaveBeenEliminated,
     YouHaveBeenRespawned(vec2<f32>),
 }

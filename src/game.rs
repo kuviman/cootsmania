@@ -94,6 +94,7 @@ pub struct Game {
     framebuffer_size: vec2<f32>,
     remote_players: HashMap<Id, RemotePlayer>,
     cat_location: Option<usize>,
+    cat_move_time: f32,
 }
 
 impl Game {
@@ -123,6 +124,7 @@ impl Game {
             framebuffer_size: vec2(1.0, 1.0),
             remote_players: default(),
             cat_location: None,
+            cat_move_time: 0.0,
         }
     }
 
@@ -152,8 +154,12 @@ impl Game {
                 ServerMessage::Disconnect(id) => {
                     self.remote_players.remove(&id);
                 }
-                ServerMessage::UpdateCat(index) => {
-                    self.cat_location = index;
+                ServerMessage::UpdateCat {
+                    location,
+                    move_time,
+                } => {
+                    self.cat_location = location;
+                    self.cat_move_time = move_time;
                 }
                 ServerMessage::YouHaveBeenEliminated => {
                     self.player = None;
@@ -201,6 +207,8 @@ impl Game {
 impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
+
+        self.cat_move_time -= delta_time;
 
         self.update_connection();
         for player in self.remote_players.values_mut() {
@@ -327,6 +335,21 @@ impl geng::State for Game {
             framebuffer,
             camera,
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
+        );
+
+        let ui_camera = &geng::Camera2d {
+            center: vec2::ZERO,
+            rotation: 0.0,
+            fov: 10.0,
+        };
+        self.geng.default_font().draw(
+            framebuffer,
+            ui_camera,
+            &format!("Cat moves in {}s", self.cat_move_time.max(0.0) as i64),
+            vec2(0.0, 4.0),
+            geng::TextAlign::CENTER,
+            1.0,
+            Rgba::GRAY,
         );
 
         if self.args.editor {

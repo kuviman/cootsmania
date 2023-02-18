@@ -88,9 +88,10 @@ impl App {
                         };
                         cat_pos = level.cat_locations[cat_pos_index];
                         for client in state.clients.values_mut() {
-                            client
-                                .sender
-                                .send(ServerMessage::UpdateCat(Some(cat_pos_index)));
+                            client.sender.send(ServerMessage::UpdateCat {
+                                location: Some(cat_pos_index),
+                                move_time: cat_move_time,
+                            });
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_secs_f64(
