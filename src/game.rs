@@ -363,30 +363,8 @@ impl Game {
             }
         }
     }
-}
 
-impl geng::State for Game {
-    fn update(&mut self, delta_time: f64) {
-        let delta_time = delta_time as f32;
-
-        self.cat_move_time -= delta_time;
-
-        self.update_connection();
-        for player in self.remote_players.values_mut() {
-            player.update(delta_time);
-        }
-
-        self.update_my_player(delta_time);
-
-        if let Some((_text, time)) = &mut self.text {
-            *time += delta_time;
-            if *time > 1.0 {
-                self.text = None;
-            }
-        }
-    }
-    fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
-        self.framebuffer_size = framebuffer.size().map(|x| x as f32);
+    fn draw_game(&self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
@@ -560,6 +538,57 @@ impl geng::State for Game {
                     &draw_2d::Quad::new(Aabb2::point(p).extend_uniform(0.3), Rgba::GREEN),
                 );
             }
+        }
+    }
+}
+
+impl geng::State for Game {
+    fn update(&mut self, delta_time: f64) {
+        let delta_time = delta_time as f32;
+
+        self.cat_move_time -= delta_time;
+
+        self.update_connection();
+        for player in self.remote_players.values_mut() {
+            player.update(delta_time);
+        }
+
+        self.update_my_player(delta_time);
+
+        if let Some((_text, time)) = &mut self.text {
+            *time += delta_time;
+            if *time > 1.0 {
+                self.text = None;
+            }
+        }
+    }
+    fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        self.framebuffer_size = framebuffer.size().map(|x| x as f32);
+
+        if self.in_settings {
+            let mut texture = ugli::Texture::new_uninitialized(
+                self.geng.ugli(),
+                framebuffer.size().map(|x| (x / 20).max(1)),
+            );
+            texture.set_filter(ugli::Filter::Nearest);
+            {
+                let framebuffer = &mut ugli::Framebuffer::new_color(
+                    self.geng.ugli(),
+                    ugli::ColorAttachment::Texture(&mut texture),
+                );
+                self.draw_game(framebuffer);
+            }
+            self.geng.draw_2d(
+                framebuffer,
+                &geng::PixelPerfectCamera,
+                &draw_2d::TexturedQuad::colored(
+                    Aabb2::point(vec2::ZERO).extend_positive(self.framebuffer_size),
+                    texture,
+                    Rgba::GRAY,
+                ),
+            );
+        } else {
+            self.draw_game(framebuffer);
         }
     }
 
