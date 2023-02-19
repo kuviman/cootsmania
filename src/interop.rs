@@ -4,6 +4,7 @@ pub type Id = i64;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
+    pub skin: usize,
     pub pos: vec2<f32>,
     pub vel: vec2<f32>,
     pub rot: f32,

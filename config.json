@@ -13,5 +13,9 @@
     "cat_move_time_change": 0.5,
     "new_round_time": 10,
     "camera_fov": 20,
-    "arrow_size": 1
+    "arrow_size": 1,
+    "player_direction_scale": [
+        2,
+        1.3
+    ]
 }

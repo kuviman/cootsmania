@@ -45,6 +45,25 @@ pub struct Assets {
     map_furniture: ugli::Texture,
     coots: ugli::Texture,
     arrow: ugli::Texture,
+    #[asset(load_with = "load_player_assets(&geng, base_path.join(\"player\"))")]
+    player: Vec<ugli::Texture>,
+    player_direction: ugli::Texture,
+}
+
+async fn load_player_assets(
+    geng: &Geng,
+    path: impl AsRef<std::path::Path>,
+) -> anyhow::Result<Vec<ugli::Texture>> {
+    let path = path.as_ref();
+    let json: String = geng.load_asset(path.join("_list.json")).await?;
+    let list: Vec<String> = serde_json::from_str(&json)?;
+    future::join_all(
+        list.into_iter()
+            .map(|name| geng.load_asset(path.join(format!("{name}.png")))),
+    )
+    .await
+    .into_iter()
+    .collect()
 }
 
 pub struct PlayerInput {
@@ -55,6 +74,7 @@ pub struct PlayerInput {
 type Connection = geng::net::client::Connection<ServerMessage, ClientMessage>;
 
 struct RemotePlayer {
+    skin: usize,
     pos: Interpolated<vec2<f32>>,
     rot: f32,
 }
@@ -62,6 +82,7 @@ struct RemotePlayer {
 impl RemotePlayer {
     fn new(player: Player) -> Self {
         Self {
+            skin: player.skin,
             pos: Interpolated::new(player.pos, player.vel),
             rot: player.rot,
         }
@@ -76,6 +97,7 @@ impl RemotePlayer {
 
     fn get(&self) -> Player {
         Player {
+            skin: self.skin,
             pos: self.pos.get(),
             vel: self.pos.get_derivative(),
             rot: self.rot,
@@ -100,6 +122,7 @@ pub struct Game {
     text: Option<(String, f32)>,
     score: i32,
     placement: usize,
+    skin: usize,
 }
 
 impl Game {
@@ -133,6 +156,7 @@ impl Game {
             text: None,
             score: 0,
             placement: 0,
+            skin: thread_rng().gen_range(0..assets.player.len()),
         }
     }
 
@@ -177,6 +201,7 @@ impl Game {
                     self.score = 0;
                     self.placement = 0;
                     self.player = Some(Player {
+                        skin: self.skin,
                         pos,
                         vel: vec2::ZERO,
                         rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
@@ -201,25 +226,32 @@ impl Game {
         player: &Player,
         me: bool,
     ) {
-        self.geng.draw_2d(
-            framebuffer,
-            camera,
-            &draw_2d::Ellipse::circle(
-                player.pos,
-                self.config.player_radius,
-                if me { Rgba::GREEN } else { Rgba::GRAY },
-            ),
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            camera,
-            &draw_2d::Ellipse::circle(
-                player.pos
-                    + vec2(1.0, 0.0).rotate(player.rot) * self.config.player_radius * (1.0 - 0.1),
-                self.config.player_radius * 0.1,
-                Rgba::BLACK,
-            ),
-        );
+        if let Some(texture) = self.assets.player.get(player.skin) {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::unit_colored(
+                    texture,
+                    if me {
+                        Rgba::WHITE
+                    } else {
+                        Rgba::new(1.0, 1.0, 1.0, 0.5)
+                    },
+                )
+                .scale_uniform(self.config.player_radius)
+                .translate(player.pos),
+            );
+            if me {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.player_direction)
+                        .rotate(player.rot)
+                        .scale(self.config.player_direction_scale * self.config.player_radius)
+                        .translate(player.pos),
+                );
+            }
+        }
     }
 
     fn update_my_player(&mut self, delta_time: f32) {

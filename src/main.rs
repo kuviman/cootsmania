@@ -34,6 +34,7 @@ pub struct Config {
     pub new_round_time: f32,
     pub camera_fov: f32,
     pub arrow_size: f32,
+    pub player_direction_scale: vec2<f32>,
 }
 
 #[derive(clap::Parser)]
