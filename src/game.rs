@@ -43,6 +43,10 @@ impl Level {
 pub struct UiAssets {
     left: ugli::Texture,
     right: ugli::Texture,
+    settings: ugli::Texture,
+    volume: ugli::Texture,
+    slider_line: ugli::Texture,
+    slider_knob: ugli::Texture,
 }
 
 #[derive(geng::Assets)]
@@ -659,7 +663,7 @@ impl geng::State for Game {
 
     fn ui<'a>(&'a mut self, cx: &'a geng::ui::Controller) -> Box<dyn geng::ui::Widget + 'a> {
         use geng::ui::*;
-        let settings_button = Button::new(cx, "settings");
+        let settings_button = TextureButton::new(cx, &self.assets.ui.settings, 32.0);
         if settings_button.was_clicked() {
             self.in_settings = !self.in_settings;
         }
@@ -684,9 +688,11 @@ impl geng::State for Game {
             )
                 .row();
             let volume_settings = (
-                "volume".center(),
-                Slider::new(
+                TextureWidget::new(&self.assets.ui.volume, 32.0).center(),
+                CustomSlider::new(
                     cx,
+                    &self.assets.ui.slider_line,
+                    &self.assets.ui.slider_knob,
                     self.volume,
                     0.0..=1.0,
                     Box::new(|new_value| {
@@ -694,7 +700,12 @@ impl geng::State for Game {
                         self.geng.audio().set_volume(new_value);
                     }),
                 )
-                .fixed_size(vec2(100.0, cx.theme().text_size as f64))
+                .fixed_size({
+                    let mut size = self.assets.ui.slider_line.size().map(|x| x as f64);
+                    size /= size.y;
+                    size *= cx.theme().text_size as f64;
+                    size
+                })
                 .center(),
             )
                 .row();
