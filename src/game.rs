@@ -40,6 +40,12 @@ impl Level {
 }
 
 #[derive(geng::Assets)]
+pub struct UiAssets {
+    left: ugli::Texture,
+    right: ugli::Texture,
+}
+
+#[derive(geng::Assets)]
 pub struct Assets {
     map_floor: ugli::Texture,
     map_furniture: ugli::Texture,
@@ -48,6 +54,7 @@ pub struct Assets {
     #[asset(load_with = "load_player_assets(&geng, base_path.join(\"player\"))")]
     player: Vec<ugli::Texture>,
     player_direction: ugli::Texture,
+    ui: UiAssets,
 }
 
 async fn load_player_assets(
@@ -123,6 +130,8 @@ pub struct Game {
     score: i32,
     placement: usize,
     skin: usize,
+    in_settings: bool,
+    volume: f64,
 }
 
 impl Game {
@@ -135,6 +144,8 @@ impl Game {
         args: Args,
     ) -> Self {
         connection.send(ClientMessage::Ping);
+        let volume = 0.5;
+        geng.audio().set_volume(volume);
         Self {
             geng: geng.clone(),
             assets: assets.clone(),
@@ -157,6 +168,8 @@ impl Game {
             score: 0,
             placement: 0,
             skin: thread_rng().gen_range(0..assets.player.len()),
+            in_settings: true,
+            volume,
         }
     }
 
@@ -612,6 +625,56 @@ impl geng::State for Game {
                     .retain(|&p| (p - pos).len() > SNAP_DISTANCE);
             }
             _ => {}
+        }
+    }
+
+    fn ui<'a>(&'a mut self, cx: &'a geng::ui::Controller) -> Box<dyn geng::ui::Widget + 'a> {
+        use geng::ui::*;
+        let settings_button = Button::new(cx, "settings");
+        if settings_button.was_clicked() {
+            self.in_settings = !self.in_settings;
+        }
+        let settings_button = settings_button.uniform_padding(16.0).align(vec2(0.0, 1.0));
+        if self.in_settings {
+            let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 32.0);
+            if skin_button_previous.was_clicked() {
+                self.skin = (self.skin + self.assets.player.len() - 1) % self.assets.player.len();
+            }
+            let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 32.0);
+            if skin_button_next.was_clicked() {
+                self.skin = (self.skin + 1) % self.assets.player.len();
+            }
+            if let Some(player) = &mut self.player {
+                player.skin = self.skin;
+            }
+            let current_skin = TextureWidget::new(&self.assets.player[self.skin], 32.0);
+            let skin_settings = (
+                skin_button_previous.center(),
+                current_skin.center(),
+                skin_button_next.center(),
+            )
+                .row();
+            let volume_settings = (
+                "volume".center(),
+                Slider::new(
+                    cx,
+                    self.volume,
+                    0.0..=1.0,
+                    Box::new(|new_value| {
+                        self.volume = new_value;
+                        self.geng.audio().set_volume(new_value);
+                    }),
+                )
+                .fixed_size(vec2(100.0, cx.theme().text_size as f64))
+                .center(),
+            )
+                .row();
+            let settings = (skin_settings.center(), volume_settings.center())
+                .column()
+                .center();
+            stack![settings_button, settings].boxed()
+        } else {
+            settings_button.boxed()
         }
     }
 }

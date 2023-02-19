@@ -5,9 +5,11 @@ mod interop;
 mod interpolation;
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
+mod ui;
 
 use interop::*;
 use interpolation::*;
+use ui::*;
 
 #[derive(geng::Assets, Serialize, Deserialize)]
 #[asset(json)]
@@ -85,6 +87,7 @@ fn main() {
 
         let geng = Geng::new_with(geng::ContextOptions {
             title: "Coots".to_owned(),
+            target_ui_resolution: Some(vec2(800.0, 600.0)),
             ..geng::ContextOptions::from_args(&args.geng)
         });
         geng::run(
