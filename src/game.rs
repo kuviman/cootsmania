@@ -172,7 +172,7 @@ impl Game {
             score: 0,
             placement: 0,
             skin: thread_rng().gen_range(0..assets.player.len()),
-            in_settings: true,
+            in_settings: false,
             volume,
         }
     }
@@ -663,24 +663,28 @@ impl geng::State for Game {
 
     fn ui<'a>(&'a mut self, cx: &'a geng::ui::Controller) -> Box<dyn geng::ui::Widget + 'a> {
         use geng::ui::*;
-        let settings_button = TextureButton::new(cx, &self.assets.ui.settings, 32.0);
+        let padding = 0.5;
+        let settings_button = TextureButton::new(cx, &self.assets.ui.settings, 1.0);
         if settings_button.was_clicked() {
             self.in_settings = !self.in_settings;
         }
-        let settings_button = settings_button.uniform_padding(16.0).align(vec2(0.0, 1.0));
+        let settings_button = settings_button
+            .uniform_padding(padding)
+            .align(vec2(0.0, 1.0));
         if self.in_settings {
-            let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 32.0);
+            let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
                 self.skin = (self.skin + self.assets.player.len() - 1) % self.assets.player.len();
             }
-            let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 32.0);
+            let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 1.0);
             if skin_button_next.was_clicked() {
                 self.skin = (self.skin + 1) % self.assets.player.len();
             }
             if let Some(player) = &mut self.player {
                 player.skin = self.skin;
             }
-            let current_skin = TextureWidget::new(&self.assets.player[self.skin], 32.0);
+            let current_skin =
+                TextureWidget::new(&self.assets.player[self.skin], 2.0).uniform_padding(padding);
             let skin_settings = (
                 skin_button_previous.center(),
                 current_skin.center(),
@@ -688,7 +692,9 @@ impl geng::State for Game {
             )
                 .row();
             let volume_settings = (
-                TextureWidget::new(&self.assets.ui.volume, 32.0).center(),
+                TextureWidget::new(&self.assets.ui.volume, 1.0)
+                    .uniform_padding(padding)
+                    .center(),
                 CustomSlider::new(
                     cx,
                     &self.assets.ui.slider_line,
@@ -703,7 +709,6 @@ impl geng::State for Game {
                 .fixed_size({
                     let mut size = self.assets.ui.slider_line.size().map(|x| x as f64);
                     size /= size.y;
-                    size *= cx.theme().text_size as f64;
                     size
                 })
                 .center(),

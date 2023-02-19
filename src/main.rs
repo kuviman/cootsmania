@@ -87,7 +87,7 @@ fn main() {
 
         let geng = Geng::new_with(geng::ContextOptions {
             title: "Coots".to_owned(),
-            target_ui_resolution: Some(vec2(800.0, 600.0)),
+            target_ui_resolution: Some(vec2(20.0, 10.0)),
             ..geng::ContextOptions::from_args(&args.geng)
         });
         geng::run(
