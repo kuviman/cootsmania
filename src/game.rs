@@ -59,6 +59,22 @@ pub struct Assets {
     player: Vec<ugli::Texture>,
     player_direction: ugli::Texture,
     ui: UiAssets,
+    #[asset(
+        range = r#"["Slow", "Medium", "Fast"]"#,
+        path = "music/Ludwig23_*.mp3",
+        postprocess = "make_each_looped"
+    )]
+    music: Vec<geng::Sound>,
+}
+
+fn make_looped(sound: &mut geng::Sound) {
+    sound.looped = true;
+}
+
+fn make_each_looped(sounds: &mut [geng::Sound]) {
+    for sound in sounds {
+        make_looped(sound);
+    }
 }
 
 async fn load_player_assets(
@@ -116,6 +132,41 @@ impl RemotePlayer {
     }
 }
 
+struct MusicState {
+    assets: Rc<Assets>,
+    current_index: usize,
+    effect: geng::SoundEffect,
+    timer: Timer,
+    offset: Duration,
+}
+
+impl MusicState {
+    pub fn start(assets: &Rc<Assets>, index: usize) -> Self {
+        Self {
+            assets: assets.clone(),
+            current_index: index,
+            effect: assets.music[index].play(),
+            timer: Timer::new(),
+            offset: Duration::from_secs_f64(0.0),
+        }
+    }
+    pub fn change(&mut self, index: usize) {
+        let current_offset = self.offset + self.timer.tick();
+        self.offset = Duration::from_secs_f64(
+            (current_offset.as_secs_f64()
+                / self.assets.music[self.current_index]
+                    .duration()
+                    .as_secs_f64())
+            .fract()
+                * self.assets.music[index].duration().as_secs_f64(),
+        );
+        self.effect.stop();
+        self.effect = self.assets.music[index].effect();
+        self.effect.play_from(self.offset);
+        self.current_index = index;
+    }
+}
+
 pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
@@ -136,6 +187,7 @@ pub struct Game {
     skin: usize,
     in_settings: bool,
     volume: f64,
+    music: MusicState,
 }
 
 impl Game {
@@ -174,6 +226,7 @@ impl Game {
             skin: thread_rng().gen_range(0..assets.player.len()),
             in_settings: false,
             volume,
+            music: MusicState::start(assets, 0),
         }
     }
 
@@ -656,6 +709,12 @@ impl geng::State for Game {
                 self.level
                     .cat_locations
                     .retain(|&p| (p - pos).len() > SNAP_DISTANCE);
+            }
+            geng::Event::KeyDown {
+                key: geng::Key::Space,
+            } => {
+                self.music
+                    .change((self.music.current_index + 1) % self.assets.music.len());
             }
             _ => {}
         }
