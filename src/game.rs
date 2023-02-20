@@ -171,6 +171,7 @@ pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
     config: Rc<Config>,
+    bots_data: bots::Data,
     connection: Connection,
     player: Option<Player>,
     camera: geng::Camera2d,
@@ -181,6 +182,7 @@ pub struct Game {
     remote_players: HashMap<Id, RemotePlayer>,
     cat_location: Option<usize>,
     cat_move_time: f32,
+    bots_time: f32,
     text: Option<(String, f32)>,
     score: i32,
     placement: usize,
@@ -188,6 +190,9 @@ pub struct Game {
     in_settings: bool,
     volume: f64,
     music: MusicState,
+    prev_cat_location: Option<usize>,
+    current_replay: bots::MoveData,
+    next_replay_push: f32,
 }
 
 impl Game {
@@ -196,6 +201,7 @@ impl Game {
         assets: &Rc<Assets>,
         level: Level,
         config: &Rc<Config>,
+        bots_data: bots::Data,
         mut connection: Connection,
         args: Args,
     ) -> Self {
@@ -206,6 +212,7 @@ impl Game {
             geng: geng.clone(),
             assets: assets.clone(),
             level,
+            bots_data,
             connection,
             config: config.clone(),
             player: None,
@@ -227,6 +234,10 @@ impl Game {
             in_settings: false,
             volume,
             music: MusicState::start(assets, 0),
+            bots_time: 0.0,
+            prev_cat_location: None,
+            current_replay: bots::MoveData::new(),
+            next_replay_push: 0.0,
         }
     }
 
@@ -260,8 +271,16 @@ impl Game {
                     location,
                     move_time,
                 } => {
+                    let replay = mem::replace(&mut self.current_replay, bots::MoveData::new());
+                    if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
+                        if self.args.editor {
+                            self.bots_data.push(prev, next, replay);
+                        }
+                    }
+                    self.prev_cat_location = self.cat_location;
                     self.cat_location = location;
                     self.cat_move_time = move_time;
+                    self.bots_time = 0.0;
                 }
                 ServerMessage::YouHaveBeenEliminated => {
                     self.player = None;
@@ -276,6 +295,7 @@ impl Game {
                         vel: vec2::ZERO,
                         rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                     });
+                    self.next_replay_push = 0.0;
                     self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
                 }
                 ServerMessage::YouScored(score) => {
@@ -297,6 +317,16 @@ impl Game {
         me: bool,
     ) {
         if let Some(texture) = self.assets.player.get(player.skin) {
+            if me {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.player_direction)
+                        .rotate(player.rot)
+                        .scale(self.config.player_direction_scale * self.config.player_radius)
+                        .translate(player.pos),
+                );
+            }
             self.geng.draw_2d(
                 framebuffer,
                 camera,
@@ -311,21 +341,17 @@ impl Game {
                 .scale_uniform(self.config.player_radius)
                 .translate(player.pos),
             );
-            if me {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::TexturedQuad::unit(&self.assets.player_direction)
-                        .rotate(player.rot)
-                        .scale(self.config.player_direction_scale * self.config.player_radius)
-                        .translate(player.pos),
-                );
-            }
         }
     }
 
     fn update_my_player(&mut self, delta_time: f32) {
         let Some(player) = &mut self.player else { return };
+
+        self.next_replay_push -= delta_time;
+        if self.next_replay_push < 0.0 && self.args.editor {
+            self.next_replay_push = 1.0 / self.config.replay_fps;
+            self.current_replay.push(self.bots_time, player.clone());
+        }
 
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
@@ -439,6 +465,11 @@ impl Game {
 
         for player in self.remote_players.values() {
             self.draw_player(framebuffer, camera, &player.get(), false);
+        }
+        if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
+            for player in self.bots_data.get(prev, next, self.bots_time) {
+                self.draw_player(framebuffer, camera, &player, false);
+            }
         }
         if let Some(index) = self.cat_location {
             if let Some(&pos) = self.level.cat_locations.get(index) {
@@ -610,6 +641,8 @@ impl geng::State for Game {
             player.update(delta_time);
         }
 
+        self.bots_time += delta_time;
+
         self.update_my_player(delta_time);
 
         if let Some((_text, time)) = &mut self.text {
@@ -691,6 +724,11 @@ impl geng::State for Game {
                 if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor =>
             {
                 self.level.save(run_dir().join("level.json"));
+                serde_json::to_writer(
+                    std::fs::File::create(run_dir().join("bots.json")).unwrap(),
+                    &self.bots_data,
+                )
+                .unwrap();
             }
             geng::Event::KeyDown { key: geng::Key::E } if self.args.editor => {
                 let pos = self.camera.screen_to_world(
