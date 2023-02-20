@@ -481,6 +481,22 @@ impl Game {
                         &self.assets.coots,
                     ),
                 );
+            } else {
+                error!("Cat location not found!");
+            }
+        }
+        if let Some(player) = &self.player {
+            self.draw_player(framebuffer, camera, player, true);
+        }
+
+        self.geng.draw_2d(
+            framebuffer,
+            camera,
+            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
+        );
+
+        if let Some(index) = self.cat_location {
+            if let Some(&pos) = self.level.cat_locations.get(index) {
                 if !camera_aabb.contains(pos) {
                     let aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
                     let arrow_pos = vec2(
@@ -497,19 +513,8 @@ impl Game {
                             .translate(arrow_pos),
                     );
                 }
-            } else {
-                error!("Cat location not found!");
             }
         }
-        if let Some(player) = &self.player {
-            self.draw_player(framebuffer, camera, player, true);
-        }
-
-        self.geng.draw_2d(
-            framebuffer,
-            camera,
-            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
-        );
 
         let ui_camera = &geng::Camera2d {
             center: vec2::ZERO,
