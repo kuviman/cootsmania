@@ -11,6 +11,11 @@ pub struct MoveData {
     data: Vec<TimedData>,
 }
 
+pub struct Result {
+    pub time: f32,
+    pub pos: vec2<f32>,
+}
+
 impl MoveData {
     pub fn new() -> Self {
         Self { data: vec![] }
@@ -34,6 +39,14 @@ impl MoveData {
             pos: p1.data.pos * (1.0 - t) + p2.data.pos * t,
             vel: p1.data.vel * (1.0 - t) + p2.data.vel * t,
             rot: p1.data.rot * (1.0 - t) + p2.data.rot * t,
+        }
+    }
+
+    fn result(&self) -> Result {
+        let data = self.data.last().unwrap();
+        Result {
+            time: data.time,
+            pos: data.data.pos,
         }
     }
 }
@@ -63,5 +76,22 @@ impl Data {
             .and_then(move |data| data.get(&next))
             .into_iter()
             .flat_map(move |data| data.iter().map(move |data| data.get(time)))
+    }
+
+    pub fn max_bots(&self) -> usize {
+        self.0
+            .values()
+            .flat_map(|data| data.values())
+            .map(|data| data.len())
+            .min()
+            .unwrap_or(0)
+    }
+
+    pub fn get_results(&self, prev: usize, next: usize) -> impl Iterator<Item = Result> + '_ {
+        self.0
+            .get(&prev)
+            .and_then(move |data| data.get(&next))
+            .into_iter()
+            .flat_map(move |data| data.iter().map(move |data| data.result()))
     }
 }

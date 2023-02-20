@@ -193,6 +193,7 @@ pub struct Game {
     prev_cat_location: Option<usize>,
     current_replay: bots::MoveData,
     next_replay_push: f32,
+    bots: usize,
 }
 
 impl Game {
@@ -238,6 +239,7 @@ impl Game {
             prev_cat_location: None,
             current_replay: bots::MoveData::new(),
             next_replay_push: 0.0,
+            bots: 0,
         }
     }
 
@@ -268,9 +270,11 @@ impl Game {
                     self.remote_players.remove(&id);
                 }
                 ServerMessage::UpdateCat {
+                    bots,
                     location,
                     move_time,
                 } => {
+                    self.bots = bots;
                     let replay = mem::replace(&mut self.current_replay, bots::MoveData::new());
                     if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
                         if self.args.editor {
@@ -467,7 +471,11 @@ impl Game {
             self.draw_player(framebuffer, camera, &player.get(), false);
         }
         if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
-            for player in self.bots_data.get(prev, next, self.bots_time) {
+            for player in self
+                .bots_data
+                .get(prev, next, self.bots_time)
+                .take(self.bots)
+            {
                 self.draw_player(framebuffer, camera, &player, false);
             }
         }

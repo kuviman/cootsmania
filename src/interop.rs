@@ -22,6 +22,7 @@ pub enum ServerMessage {
     UpdatePlayer(Id, Option<Player>),
     Disconnect(Id),
     UpdateCat {
+        bots: usize,
         location: Option<usize>,
         move_time: f32,
     },

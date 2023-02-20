@@ -11,6 +11,7 @@ struct State {
     next_id: Id,
     level: Level,
     config: Config,
+    bots: bots::Data,
     cat_pos: Option<usize>,
     clients: HashMap<Id, Client>,
     this_start: Timer,
@@ -25,9 +26,11 @@ impl State {
         let config: Config =
             serde_json::from_reader(std::fs::File::open(run_dir().join("config.json")).unwrap())
                 .unwrap();
+        let bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.json")));
         Self {
             level,
             config,
+            bots,
             next_id: 0,
             cat_pos: None,
             clients: default(),
@@ -49,57 +52,23 @@ impl App {
         Self {
             state: state.clone(),
             background_thread: std::thread::spawn(move || {
+                let mut prev_cat_pos_index = 0;
                 let mut cat_pos_index = 0;
                 let mut cat_pos = vec2::ZERO;
+                let mut bots = 0;
                 let mut cat_move_time = state.lock().unwrap().config.cat_move_time;
+                let max_bots = state.lock().unwrap().bots.max_bots();
+                dbg!(max_bots);
                 loop {
                     {
                         let mut state = state.lock().unwrap();
-                        if state.clients.values().any(|client| client.pos.is_some()) {
-                            let mut update_placements: Vec<Id> = Vec::new();
-                            let mut eliminated = Vec::new();
-                            for (&id, client) in &mut state.clients {
-                                if let Some(score) = client.this_score.take() {
-                                    client.score += score;
-                                    update_placements.push(id);
-                                } else if client.pos.is_some() {
-                                    eliminated.push(id);
-                                    update_placements.push(id);
-                                }
-                            }
-                            if eliminated.is_empty() {
-                                cat_move_time -= state.config.cat_move_time_change;
-                            }
-                            for id in eliminated {
-                                for (&client_id, client) in &mut state.clients {
-                                    if client_id == id {
-                                        client.pos = None;
-                                        client.sender.send(ServerMessage::YouHaveBeenEliminated);
-                                    } else {
-                                        client.sender.send(ServerMessage::UpdatePlayer(id, None));
-                                    }
-                                }
-                            }
-
-                            update_placements.sort_by_key(|id| {
-                                let client = state.clients.get(id).unwrap();
-                                let eliminated = client.pos.is_none();
-                                (eliminated, -client.score)
-                            });
-                            for (rank, id) in update_placements.into_iter().enumerate() {
-                                state
-                                    .clients
-                                    .get_mut(&id)
-                                    .unwrap()
-                                    .sender
-                                    .send(ServerMessage::UpdatePlacement(rank + 1));
-                            }
-
-                            // Everyone eliminated?
-                            if !state.clients.values().any(|client| client.pos.is_some()) {
-                                cat_move_time = state.config.new_round_time;
-                            }
-                        } else {
+                        let players_left = state
+                            .clients
+                            .values()
+                            .filter(|client| client.pos.is_some())
+                            .count()
+                            + bots;
+                        if players_left <= 1 {
                             // TODO: sometimes we go here if all alive players have just disconnected and not eliminated
                             for client in state.clients.values_mut() {
                                 let pos = vec2::ZERO;
@@ -108,8 +77,77 @@ impl App {
                                 client.pos = Some(pos);
                                 client.sender.send(ServerMessage::YouHaveBeenRespawned(pos));
                             }
+                            bots = max_bots; // TODO: maybe not spawn bots always?
                             cat_move_time = state.config.cat_move_time;
+                        } else {
+                            struct Foo {
+                                id: Id,
+                                eliminated: bool,
+                                score: i32,
+                            }
+                            let mut placements = Vec::new();
+                            for (&id, client) in &mut state.clients {
+                                let mut eliminated = false;
+                                if let Some(score) = client.this_score.take() {
+                                    client.score += score;
+                                } else if client.pos.is_some() {
+                                    eliminated = true;
+                                }
+                                placements.push(Foo {
+                                    id,
+                                    eliminated,
+                                    score: client.score,
+                                });
+                            }
+
+                            for (i, bots::Result { time, pos }) in state
+                                .bots
+                                .get_results(prev_cat_pos_index, cat_pos_index)
+                                .take(bots)
+                                .enumerate()
+                            {
+                                placements.push(Foo {
+                                    id: -(i as Id + 1),
+                                    eliminated: (pos - cat_pos).len()
+                                        > state.config.player_radius * 2.0,
+                                    score: ((cat_move_time - time) * 1000.0) as i32,
+                                });
+                            }
+
+                            placements.sort_by_key(|foo| (foo.eliminated, -foo.score));
+                            let eliminate_from = placements.len() - placements.len() / 2;
+
+                            for (rank, mut foo) in placements.into_iter().enumerate() {
+                                if rank >= eliminate_from {
+                                    foo.eliminated = true;
+                                }
+                                if foo.id >= 0 {
+                                    state
+                                        .clients
+                                        .get_mut(&foo.id)
+                                        .unwrap()
+                                        .sender
+                                        .send(ServerMessage::UpdatePlacement(rank + 1));
+                                    if foo.eliminated {
+                                        for (&client_id, client) in &mut state.clients {
+                                            if client_id == foo.id {
+                                                client.pos = None;
+                                                client
+                                                    .sender
+                                                    .send(ServerMessage::YouHaveBeenEliminated);
+                                            } else {
+                                                client.sender.send(ServerMessage::UpdatePlayer(
+                                                    foo.id, None,
+                                                ));
+                                            }
+                                        }
+                                    }
+                                } else if foo.eliminated {
+                                    bots -= 1;
+                                }
+                            }
                         }
+                        prev_cat_pos_index = cat_pos_index;
                         cat_pos_index = loop {
                             let index = thread_rng().gen_range(0..state.level.cat_locations.len());
                             if index != cat_pos_index {
@@ -119,6 +157,7 @@ impl App {
                         cat_pos = state.level.cat_locations[cat_pos_index];
                         for client in state.clients.values_mut() {
                             client.sender.send(ServerMessage::UpdateCat {
+                                bots,
                                 location: Some(cat_pos_index),
                                 move_time: cat_move_time,
                             });
