@@ -62,6 +62,9 @@ impl Data {
     }
 
     pub fn push(&mut self, prev: usize, next: usize, replay: MoveData) {
+        if replay.data.is_empty() {
+            return;
+        }
         self.0
             .entry(prev)
             .or_default()

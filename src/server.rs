@@ -4,6 +4,7 @@ struct Client {
     pos: Option<vec2<f32>>,
     score: i32,
     this_score: Option<i32>, // Score of current cat move
+    current_replay: bots::MoveData,
     sender: Box<dyn geng::net::Sender<ServerMessage>>,
 }
 
@@ -12,7 +13,7 @@ struct State {
     level: Level,
     config: Config,
     bots: bots::Data,
-    cat_pos: Option<usize>,
+    cat_pos: Option<(usize, usize)>,
     clients: HashMap<Id, Client>,
     this_start: Timer,
     cat_move_time: f32,
@@ -62,16 +63,26 @@ impl App {
                 loop {
                     {
                         let mut state = state.lock().unwrap();
-                        let players_left = state
+                        let state: &mut State = &mut state;
+                        let actual_players = state
                             .clients
                             .values()
                             .filter(|client| client.pos.is_some())
-                            .count()
-                            + bots;
+                            .count();
+                        let players_left = actual_players + bots;
                         if players_left <= 1 {
+                            if state.config.server_recordings {
+                                serde_json::to_writer(
+                                    std::io::BufWriter::new(
+                                        std::fs::File::create(run_dir().join("bots.json")).unwrap(),
+                                    ),
+                                    &state.bots,
+                                )
+                                .unwrap();
+                            }
                             // TODO: sometimes we go here if all alive players have just disconnected and not eliminated
                             for client in state.clients.values_mut() {
-                                let pos = vec2::ZERO;
+                                let pos = cat_pos;
                                 client.score = 0;
                                 client.this_score = None;
                                 client.pos = Some(pos);
@@ -90,14 +101,19 @@ impl App {
                                 let mut eliminated = false;
                                 if let Some(score) = client.this_score.take() {
                                     client.score += score;
+                                    placements.push(Foo {
+                                        id,
+                                        eliminated,
+                                        score: client.score,
+                                    });
                                 } else if client.pos.is_some() {
                                     eliminated = true;
+                                    placements.push(Foo {
+                                        id,
+                                        eliminated,
+                                        score: client.score,
+                                    });
                                 }
-                                placements.push(Foo {
-                                    id,
-                                    eliminated,
-                                    score: client.score,
-                                });
                             }
 
                             for (i, bots::Result { time, pos }) in state
@@ -115,6 +131,7 @@ impl App {
                             }
 
                             placements.sort_by_key(|foo| (foo.eliminated, -foo.score));
+                            assert_eq!(placements.len(), players_left);
                             let eliminate_from = placements.len() - placements.len() / 2;
 
                             for (rank, mut foo) in placements.into_iter().enumerate() {
@@ -147,6 +164,15 @@ impl App {
                                 }
                             }
                         }
+
+                        if state.config.server_recordings {
+                            for client in state.clients.values_mut() {
+                                let replay =
+                                    mem::replace(&mut client.current_replay, bots::MoveData::new());
+                                state.bots.push(prev_cat_pos_index, cat_pos_index, replay);
+                            }
+                        }
+
                         prev_cat_pos_index = cat_pos_index;
                         cat_pos_index = loop {
                             let index = thread_rng().gen_range(0..state.level.cat_locations.len());
@@ -162,7 +188,7 @@ impl App {
                                 move_time: cat_move_time,
                             });
                         }
-                        state.cat_pos = Some(cat_pos_index);
+                        state.cat_pos = Some((prev_cat_pos_index, cat_pos_index));
                         state.cat_move_time = cat_move_time;
                         state.this_start = Timer::new();
                     }
@@ -210,8 +236,14 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
                     for (id, client) in &mut state.clients {
                         if *id == self.id {
                             client.pos = Some(player.pos);
+                            if client.this_score.is_none() && state.config.server_recordings {
+                                client.current_replay.push(
+                                    state.this_start.elapsed().as_secs_f64() as f32,
+                                    player.clone(),
+                                );
+                            }
                             if client.this_score.is_none() && player.vel.len() < 1e-5 {
-                                if let Some(index) = state.cat_pos {
+                                if let Some((_prev, index)) = state.cat_pos {
                                     if let Some(&pos) = state.level.cat_locations.get(index) {
                                         if (player.pos - pos).len()
                                             < state.config.player_radius * 2.0
@@ -252,6 +284,7 @@ impl geng::net::server::App for App {
         state.clients.insert(
             id,
             Client {
+                current_replay: bots::MoveData::new(),
                 this_score: None,
                 score: 0,
                 pos: None,

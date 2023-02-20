@@ -39,6 +39,7 @@ pub struct Config {
     pub arrow_size: f32,
     pub player_direction_scale: vec2<f32>,
     pub replay_fps: f32,
+    pub server_recordings: bool,
 }
 
 #[derive(clap::Parser)]
