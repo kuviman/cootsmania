@@ -9,9 +9,8 @@
     "player_radius": 1,
     "collision_bounciness": 0.3,
     "camera_speed": 5,
-    "cat_move_time": 10,
+    "cat_move_time": 20,
     "cat_move_time_change": 0.5,
-    "new_round_time": 10,
     "camera_fov": 20,
     "arrow_size": 1,
     "player_direction_scale": [
@@ -19,5 +18,6 @@
         1.3
     ],
     "replay_fps": 10,
-    "server_recordings": true
+    "server_recordings": true,
+    "map_scale": 30
 }

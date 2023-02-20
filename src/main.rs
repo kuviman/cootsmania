@@ -32,14 +32,14 @@ pub struct Config {
     pub max_backward_speed: f32,
     pub collision_bounciness: f32,
     pub camera_speed: f32,
-    pub cat_move_time: f32,
+    pub cat_move_time: i32,
     pub cat_move_time_change: f32,
-    pub new_round_time: f32,
     pub camera_fov: f32,
     pub arrow_size: f32,
     pub player_direction_scale: vec2<f32>,
     pub replay_fps: f32,
     pub server_recordings: bool,
+    pub map_scale: f32,
 }
 
 #[derive(clap::Parser)]

@@ -60,7 +60,22 @@ impl App {
                 let mut cat_move_time = state.lock().unwrap().config.cat_move_time;
                 let max_bots = state.lock().unwrap().bots.max_bots();
                 dbg!(max_bots);
+                let mut elapsed_time = 0;
                 loop {
+                    if elapsed_time == cat_move_time
+                        || (state
+                            .lock()
+                            .unwrap()
+                            .clients
+                            .values()
+                            .all(|client| client.pos.is_none() || client.this_score.is_some())
+                            && state
+                                .lock()
+                                .unwrap()
+                                .bots
+                                .get_results(prev_cat_pos_index, cat_pos_index)
+                                .take(bots)
+                                .all(|result| result.time < elapsed_time as f32))
                     {
                         let mut state = state.lock().unwrap();
                         let state: &mut State = &mut state;
@@ -116,9 +131,16 @@ impl App {
                                 }
                             }
 
+                            #[allow(clippy::unit_arg)]
+                            Ok::<(), ()>(Some(()).unwrap()).unwrap();
+
                             for (i, bots::Result { time, pos }) in state
                                 .bots
                                 .get_results(prev_cat_pos_index, cat_pos_index)
+                                .chain(std::iter::repeat_with(|| bots::Result {
+                                    time: cat_move_time as f32 * 2.0,
+                                    pos: vec2(1e9, 1e9),
+                                }))
                                 .take(bots)
                                 .enumerate()
                             {
@@ -126,7 +148,7 @@ impl App {
                                     id: -(i as Id + 1),
                                     eliminated: (pos - cat_pos).len()
                                         > state.config.player_radius * 2.0,
-                                    score: ((cat_move_time - time) * 1000.0) as i32,
+                                    score: ((cat_move_time as f32 - time) * 1000.0) as i32,
                                 });
                             }
 
@@ -185,16 +207,15 @@ impl App {
                             client.sender.send(ServerMessage::UpdateCat {
                                 bots,
                                 location: Some(cat_pos_index),
-                                move_time: cat_move_time,
+                                move_time: cat_move_time as f32,
                             });
                         }
                         state.cat_pos = Some((prev_cat_pos_index, cat_pos_index));
-                        state.cat_move_time = cat_move_time;
+                        state.cat_move_time = cat_move_time as f32;
                         state.this_start = Timer::new();
                     }
-                    std::thread::sleep(std::time::Duration::from_secs_f64(
-                        cat_move_time.max(0.0) as f64
-                    ));
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    elapsed_time += 1;
                 }
             }),
         }

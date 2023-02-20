@@ -191,8 +191,6 @@ pub struct Game {
     volume: f64,
     music: MusicState,
     prev_cat_location: Option<usize>,
-    current_replay: bots::MoveData,
-    next_replay_push: f32,
     bots: usize,
 }
 
@@ -216,7 +214,12 @@ impl Game {
             bots_data,
             connection,
             config: config.clone(),
-            player: None,
+            player: args.editor.then_some(Player {
+                skin: 0,
+                pos: vec2::ZERO,
+                vel: vec2::ZERO,
+                rot: 0.0,
+            }),
             camera: geng::Camera2d {
                 center: vec2::ZERO,
                 rotation: 0.0,
@@ -237,8 +240,6 @@ impl Game {
             music: MusicState::start(assets, 0),
             bots_time: 0.0,
             prev_cat_location: None,
-            current_replay: bots::MoveData::new(),
-            next_replay_push: 0.0,
             bots: 0,
         }
     }
@@ -275,32 +276,29 @@ impl Game {
                     move_time,
                 } => {
                     self.bots = bots;
-                    let replay = mem::replace(&mut self.current_replay, bots::MoveData::new());
-                    if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
-                        if self.args.editor {
-                            self.bots_data.push(prev, next, replay);
-                        }
-                    }
                     self.prev_cat_location = self.cat_location;
                     self.cat_location = location;
                     self.cat_move_time = move_time;
                     self.bots_time = 0.0;
                 }
                 ServerMessage::YouHaveBeenEliminated => {
-                    self.player = None;
-                    self.text = Some(("You have been eliminated".to_owned(), 0.0));
+                    if !self.args.editor {
+                        self.player = None;
+                        self.text = Some(("You have been eliminated".to_owned(), 0.0));
+                    }
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
-                    self.score = 0;
-                    self.placement = 0;
-                    self.player = Some(Player {
-                        skin: self.skin,
-                        pos,
-                        vel: vec2::ZERO,
-                        rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
-                    });
-                    self.next_replay_push = 0.0;
-                    self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
+                    if !self.args.editor {
+                        self.score = 0;
+                        self.placement = 0;
+                        self.player = Some(Player {
+                            skin: self.skin,
+                            pos,
+                            vel: vec2::ZERO,
+                            rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
+                        });
+                        self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
+                    }
                 }
                 ServerMessage::YouScored(score) => {
                     self.score += score;
@@ -350,12 +348,6 @@ impl Game {
 
     fn update_my_player(&mut self, delta_time: f32) {
         let Some(player) = &mut self.player else { return };
-
-        self.next_replay_push -= delta_time;
-        if self.next_replay_push < 0.0 && self.args.editor {
-            self.next_replay_push = 1.0 / self.config.replay_fps;
-            self.current_replay.push(self.bots_time, player.clone());
-        }
 
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
@@ -459,7 +451,7 @@ impl Game {
 
         let texture_pos = Aabb2::point(vec2::ZERO).extend_symmetric({
             let size = self.assets.map_floor.size().map(|x| x as f32);
-            vec2(size.x / size.y, 1.0) * 10.0
+            vec2(size.x / size.y, 1.0) * self.config.map_scale
         });
         self.geng.draw_2d(
             framebuffer,
