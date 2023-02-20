@@ -213,6 +213,7 @@ impl App {
                         state.cat_pos = Some((prev_cat_pos_index, cat_pos_index));
                         state.cat_move_time = cat_move_time as f32;
                         state.this_start = Timer::new();
+                        elapsed_time = 0;
                     }
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     elapsed_time += 1;
