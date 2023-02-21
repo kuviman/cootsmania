@@ -1,6 +1,6 @@
 use super::*;
 
-const SNAP_DISTANCE: f32 = 0.5;
+const SNAP_DISTANCE: f32 = 0.2;
 
 fn vector_from(p: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> vec2<f32> {
     if vec2::dot(p - p1, p2 - p1) < 0.0 {
@@ -248,6 +248,11 @@ impl Game {
 
     fn update_connection(&mut self) {
         while let Some(message) = self.connection.try_recv() {
+            match &message {
+                ServerMessage::Pong => {}
+                ServerMessage::UpdatePlayer(..) => {}
+                _ => info!("{message:?}"),
+            }
             match message {
                 ServerMessage::Pong => {
                     self.connection.send(ClientMessage::Ping);
@@ -299,8 +304,10 @@ impl Game {
                     self.cat_move_time = self.config.cat_move_time as f32;
                 }
                 ServerMessage::YouHaveBeenQualified => {
-                    self.player = None;
-                    self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
+                    if !self.args.editor {
+                        self.player = None;
+                        self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
+                    }
                 }
             }
         }

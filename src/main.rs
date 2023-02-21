@@ -41,6 +41,7 @@ impl Level {
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
 pub struct Config {
+    pub new_session_time: f32,
     pub rotation_speed: f32,
     pub acceleration: f32,
     pub backward_acceleration: f32,

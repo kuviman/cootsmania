@@ -21,6 +21,7 @@ struct State {
     bot_ids: HashMap<Id, Bot>,
     players: HashSet<Id>,
     round_timer: Timer,
+    new_session_timer: Option<Timer>,
 }
 
 impl State {
@@ -32,7 +33,7 @@ impl State {
         let config: Config =
             serde_json::from_reader(std::fs::File::open(run_dir().join("config.json")).unwrap())
                 .unwrap();
-        let bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.json")));
+        let bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.data")));
         let mut next_id = 0;
         let bot_ids = (0..bots.max_bots() + 100)
             .map(|index| {
@@ -55,9 +56,17 @@ impl State {
             players: default(),
             bot_ids,
             round_timer: Timer::new(),
+            new_session_timer: None,
         }
     }
     fn tick(&mut self) {
+        if let Some(timer) = &mut self.new_session_timer {
+            if timer.elapsed().as_secs_f64() as f32 > self.config.new_session_time {
+                self.new_session_timer = None;
+                self.new_session();
+            }
+            return;
+        }
         if self.round_timer.elapsed().as_secs_f64() > self.config.cat_move_time as f64
             || self.players.is_empty()
         {
@@ -68,16 +77,28 @@ impl State {
             self.round_timer.elapsed().as_secs_f64() as f32,
         );
         let mut bot_updates = Vec::new();
+        let mut remove_bots = Vec::new();
         for &id in &self.players {
             if let Some(bot) = self.bot_ids.get(&id) {
                 if let Some(player) = bots.next() {
                     bot_updates.push((id, player));
+                } else {
+                    remove_bots.push(id);
                 }
             }
         }
         mem::drop(bots);
+        if !remove_bots.is_empty() {
+            for id in remove_bots {
+                self.players.remove(&id);
+            }
+            self.update_numbers();
+        }
         for (id, player) in bot_updates {
             self.update_player(id, player);
+        }
+        if self.players.len() == self.qualified_players.len() {
+            self.end_round();
         }
     }
     fn new_session(&mut self) {
@@ -125,6 +146,11 @@ impl State {
             client.pos = None;
             client.sender.send(ServerMessage::YouHaveBeenQualified);
         }
+        for (&client_id, client) in &mut self.clients {
+            if client_id != id {
+                client.sender.send(ServerMessage::Disconnect(id)); // TODO: maybe not disconnect exactly
+            }
+        }
     }
     fn time_up(&mut self) {
         self.end_round();
@@ -157,9 +183,9 @@ impl State {
                 let replay = mem::replace(&mut client.current_replay, bots::MoveData::new());
                 self.bots.push(self.round.track, replay);
             }
-            serde_json::to_writer(
+            bincode::serialize_into(
                 std::io::BufWriter::new(
-                    std::fs::File::create(run_dir().join("bots.json")).unwrap(),
+                    std::fs::File::create(run_dir().join("bots.data")).unwrap(),
                 ),
                 &self.bots,
             )
@@ -175,8 +201,7 @@ impl State {
         self.players
             .retain(|id| self.qualified_players.contains(id));
         if self.players.len() <= 1 {
-            // TODO: wait a bit to congratulate the winner
-            self.new_session();
+            self.new_session_timer = Some(Timer::new());
         } else {
             self.new_round_from(self.round.track.to);
         }
@@ -213,7 +238,7 @@ impl State {
         if self.qualified_players.contains(&id) {
             return;
         }
-        if player.vel.len() > 1e5 {
+        if player.vel.len() > 1e-5 {
             return;
         }
         if (player.pos - self.level.cat_locations[self.round.track.to]).len()

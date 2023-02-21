@@ -56,9 +56,11 @@ pub struct Data(HashMap<Track, Vec<MoveData>>);
 
 impl Data {
     pub async fn load(path: impl AsRef<std::path::Path>) -> Self {
-        file::load_json(path)
-            .await
-            .expect("Failed to load bots data")
+        async fn load(path: impl AsRef<std::path::Path>) -> anyhow::Result<Data> {
+            let bytes = file::load_bytes(path).await?;
+            Ok(bincode::deserialize(&bytes)?)
+        }
+        load(path).await.unwrap_or(Self(default()))
     }
 
     pub fn push(&mut self, track: Track, replay: MoveData) {

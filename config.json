@@ -19,5 +19,6 @@
     ],
     "replay_fps": 10,
     "server_recordings": true,
-    "map_scale": 30
+    "map_scale": 30,
+    "new_session_time": 3
 }
