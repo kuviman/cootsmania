@@ -193,6 +193,7 @@ impl State {
 
         for (&id, client) in &mut self.clients {
             if !self.qualified_players.contains(&id) && client.pos.is_some() {
+                client.pos = None;
                 client.sender.send(ServerMessage::YouHaveBeenEliminated);
             }
         }
