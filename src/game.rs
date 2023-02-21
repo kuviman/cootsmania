@@ -302,6 +302,7 @@ impl Game {
                 ServerMessage::NewRound(round) => {
                     self.round = round;
                     self.cat_move_time = self.config.cat_move_time as f32;
+                    self.remote_players.clear();
                 }
                 ServerMessage::YouHaveBeenQualified => {
                     if !self.args.editor {

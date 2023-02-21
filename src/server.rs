@@ -142,7 +142,7 @@ impl State {
         }
         for (&client_id, client) in &mut self.clients {
             if client_id != id {
-                client.sender.send(ServerMessage::Disconnect(id)); // TODO: maybe not disconnect exactly
+                client.sender.send(ServerMessage::UpdatePlayer(id, None));
             }
         }
         assert!(self.qualified_players.len() < self.round.to_be_qualified);
