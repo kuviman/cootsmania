@@ -136,12 +136,6 @@ impl State {
         self.update_numbers();
     }
     fn player_finished(&mut self, id: Id) {
-        assert!(self.qualified_players.len() < self.round.to_be_qualified);
-        self.qualified_players.insert(id);
-        if self.qualified_players.len() == self.round.to_be_qualified {
-            self.end_round();
-        }
-        self.update_numbers();
         if let Some(client) = self.clients.get_mut(&id) {
             client.pos = None;
             client.sender.send(ServerMessage::YouHaveBeenQualified);
@@ -151,6 +145,12 @@ impl State {
                 client.sender.send(ServerMessage::Disconnect(id)); // TODO: maybe not disconnect exactly
             }
         }
+        assert!(self.qualified_players.len() < self.round.to_be_qualified);
+        self.qualified_players.insert(id);
+        if self.qualified_players.len() == self.round.to_be_qualified {
+            self.end_round();
+        }
+        self.update_numbers();
     }
     fn time_up(&mut self) {
         self.end_round();
