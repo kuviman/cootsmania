@@ -157,6 +157,13 @@ impl State {
                 let replay = mem::replace(&mut client.current_replay, bots::MoveData::new());
                 self.bots.push(self.round.track, replay);
             }
+            serde_json::to_writer(
+                std::io::BufWriter::new(
+                    std::fs::File::create(run_dir().join("bots.json")).unwrap(),
+                ),
+                &self.bots,
+            )
+            .unwrap();
         }
 
         for (&id, client) in &mut self.clients {
