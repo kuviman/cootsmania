@@ -19,6 +19,25 @@ pub struct Level {
     cat_locations: Vec<vec2<f32>>,
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct Track {
+    pub from: usize,
+    pub to: usize,
+}
+
+impl Level {
+    pub fn random_track(&self) -> Track {
+        self.random_track_from(thread_rng().gen_range(0..self.cat_locations.len()))
+    }
+    pub fn random_track_from(&self, from: usize) -> Track {
+        let mut to = thread_rng().gen_range(0..self.cat_locations.len() - 1);
+        if to >= from {
+            to += 1;
+        }
+        Track { from, to }
+    }
+}
+
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
 pub struct Config {

@@ -52,7 +52,7 @@ impl MoveData {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Data(HashMap<usize, HashMap<usize, Vec<MoveData>>>);
+pub struct Data(HashMap<Track, Vec<MoveData>>);
 
 impl Data {
     pub async fn load(path: impl AsRef<std::path::Path>) -> Self {
@@ -61,39 +61,27 @@ impl Data {
             .expect("Failed to load bots data")
     }
 
-    pub fn push(&mut self, prev: usize, next: usize, replay: MoveData) {
+    pub fn push(&mut self, track: Track, replay: MoveData) {
         if replay.data.is_empty() {
             return;
         }
-        self.0
-            .entry(prev)
-            .or_default()
-            .entry(next)
-            .or_default()
-            .push(replay);
+        self.0.entry(track).or_default().push(replay);
     }
 
-    pub fn get(&self, prev: usize, next: usize, time: f32) -> impl Iterator<Item = Player> + '_ {
+    pub fn get(&self, track: Track, time: f32) -> impl Iterator<Item = Player> + '_ {
         self.0
-            .get(&prev)
-            .and_then(move |data| data.get(&next))
+            .get(&track)
             .into_iter()
             .flat_map(move |data| data.iter().map(move |data| data.get(time)))
     }
 
     pub fn max_bots(&self) -> usize {
-        self.0
-            .values()
-            .flat_map(|data| data.values())
-            .map(|data| data.len())
-            .min()
-            .unwrap_or(0)
+        self.0.values().map(|data| data.len()).min().unwrap_or(0)
     }
 
-    pub fn get_results(&self, prev: usize, next: usize) -> impl Iterator<Item = Result> + '_ {
+    pub fn get_results(&self, track: Track) -> impl Iterator<Item = Result> + '_ {
         self.0
-            .get(&prev)
-            .and_then(move |data| data.get(&next))
+            .get(&track)
             .into_iter()
             .flat_map(move |data| data.iter().map(move |data| data.result()))
     }

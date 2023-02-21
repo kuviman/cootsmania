@@ -171,7 +171,6 @@ pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
     config: Rc<Config>,
-    bots_data: bots::Data,
     connection: Connection,
     player: Option<Player>,
     camera: geng::Camera2d,
@@ -180,9 +179,7 @@ pub struct Game {
     start_drag: Option<vec2<f32>>,
     framebuffer_size: vec2<f32>,
     remote_players: HashMap<Id, RemotePlayer>,
-    cat_location: Option<usize>,
     cat_move_time: f32,
-    bots_time: f32,
     text: Option<(String, f32)>,
     score: i32,
     placement: usize,
@@ -190,8 +187,8 @@ pub struct Game {
     in_settings: bool,
     volume: f64,
     music: MusicState,
-    prev_cat_location: Option<usize>,
-    bots: usize,
+    round: Round,
+    numbers: Numbers,
 }
 
 impl Game {
@@ -211,7 +208,6 @@ impl Game {
             geng: geng.clone(),
             assets: assets.clone(),
             level,
-            bots_data,
             connection,
             config: config.clone(),
             player: args.editor.then_some(Player {
@@ -229,7 +225,6 @@ impl Game {
             start_drag: None,
             framebuffer_size: vec2(1.0, 1.0),
             remote_players: default(),
-            cat_location: None,
             cat_move_time: 0.0,
             text: None,
             score: 0,
@@ -238,9 +233,16 @@ impl Game {
             in_settings: false,
             volume,
             music: MusicState::start(assets, 0),
-            bots_time: 0.0,
-            prev_cat_location: None,
-            bots: 0,
+            numbers: Numbers {
+                players_left: 0,
+                spectators: 0,
+                bots: 0,
+                qualified: 0,
+            },
+            round: Round {
+                track: Track { from: 0, to: 1 },
+                to_be_qualified: 0,
+            },
         }
     }
 
@@ -270,17 +272,6 @@ impl Game {
                 ServerMessage::Disconnect(id) => {
                     self.remote_players.remove(&id);
                 }
-                ServerMessage::UpdateCat {
-                    bots,
-                    location,
-                    move_time,
-                } => {
-                    self.bots = bots;
-                    self.prev_cat_location = self.cat_location;
-                    self.cat_location = location;
-                    self.cat_move_time = move_time;
-                    self.bots_time = 0.0;
-                }
                 ServerMessage::YouHaveBeenEliminated => {
                     if !self.args.editor {
                         self.player = None;
@@ -300,12 +291,16 @@ impl Game {
                         self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
                     }
                 }
-                ServerMessage::YouScored(score) => {
-                    self.score += score;
-                    self.text = Some((format!("+{score}"), 0.0));
+                ServerMessage::Numbers(numbers) => {
+                    self.numbers = numbers;
                 }
-                ServerMessage::UpdatePlacement(placment) => {
-                    self.placement = placment;
+                ServerMessage::NewRound(round) => {
+                    self.round = round;
+                    self.cat_move_time = self.config.cat_move_time as f32;
+                }
+                ServerMessage::YouHaveBeenQualified => {
+                    self.player = None;
+                    self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
                 }
             }
         }
@@ -351,16 +346,6 @@ impl Game {
 
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
-
-        if player.vel.len() < 1e-5 {
-            if let Some(index) = self.cat_location {
-                if let Some(&pos) = self.level.cat_locations.get(index) {
-                    if (player.pos - pos).len() < self.config.player_radius * 2.0 {
-                        return;
-                    }
-                }
-            }
-        }
 
         let input = PlayerInput {
             rotate: {
@@ -462,28 +447,17 @@ impl Game {
         for player in self.remote_players.values() {
             self.draw_player(framebuffer, camera, &player.get(), false);
         }
-        if let (Some(prev), Some(next)) = (self.prev_cat_location, self.cat_location) {
-            for player in self
-                .bots_data
-                .get(prev, next, self.bots_time)
-                .take(self.bots)
-            {
-                self.draw_player(framebuffer, camera, &player, false);
-            }
-        }
-        if let Some(index) = self.cat_location {
-            if let Some(&pos) = self.level.cat_locations.get(index) {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::TexturedQuad::new(
-                        Aabb2::point(pos).extend_uniform(self.config.player_radius),
-                        &self.assets.coots,
-                    ),
-                );
-            } else {
-                error!("Cat location not found!");
-            }
+        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::new(
+                    Aabb2::point(pos).extend_uniform(self.config.player_radius),
+                    &self.assets.coots,
+                ),
+            );
+        } else {
+            error!("Cat location not found!");
         }
         if let Some(player) = &self.player {
             self.draw_player(framebuffer, camera, player, true);
@@ -495,24 +469,22 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
         );
 
-        if let Some(index) = self.cat_location {
-            if let Some(&pos) = self.level.cat_locations.get(index) {
-                if !camera_aabb.contains(pos) {
-                    let aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
-                    let arrow_pos = vec2(
-                        pos.x.clamp(aabb.min.x, aabb.max.x),
-                        pos.y.clamp(aabb.min.y, aabb.max.y),
-                    );
+        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+            if !camera_aabb.contains(pos) {
+                let aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
+                let arrow_pos = vec2(
+                    pos.x.clamp(aabb.min.x, aabb.max.x),
+                    pos.y.clamp(aabb.min.y, aabb.max.y),
+                );
 
-                    self.geng.draw_2d(
-                        framebuffer,
-                        camera,
-                        &draw_2d::TexturedQuad::unit(&self.assets.arrow)
-                            .scale_uniform(self.config.arrow_size)
-                            .rotate((pos - arrow_pos).arg())
-                            .translate(arrow_pos),
-                    );
-                }
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.arrow)
+                        .scale_uniform(self.config.arrow_size)
+                        .rotate((pos - arrow_pos).arg())
+                        .translate(arrow_pos),
+                );
             }
         }
 
@@ -525,18 +497,6 @@ impl Game {
         self.geng.default_font().draw(
             framebuffer,
             ui_camera,
-            &format!(
-                "coots moves in {}s",
-                self.cat_move_time.max(0.0).ceil() as i64,
-            ),
-            vec2(0.0, 4.0),
-            geng::TextAlign::CENTER,
-            1.0,
-            Rgba::GRAY,
-        );
-        self.geng.default_font().draw(
-            framebuffer,
-            ui_camera,
             if self.player.is_some() {
                 "go to coots!"
             } else {
@@ -546,30 +506,6 @@ impl Game {
             geng::TextAlign::CENTER,
             1.0,
             Rgba::GRAY,
-        );
-        if self.placement != 0 {
-            self.geng.default_font().draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &format!("#{}", self.placement),
-                ui_aabb.bottom_right() + vec2(-1.0, 2.0),
-                geng::TextAlign::RIGHT,
-                1.0,
-                Rgba::WHITE,
-                0.05,
-                Rgba::BLACK,
-            );
-        }
-        self.geng.default_font().draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &format!("score: {}", self.score),
-            ui_aabb.bottom_right() + vec2(-1.0, 1.0),
-            geng::TextAlign::RIGHT,
-            0.7,
-            Rgba::WHITE,
-            0.01,
-            Rgba::BLACK,
         );
         if let Some((ref text, t)) = self.text {
             self.geng.default_font().draw_with_outline(
@@ -584,6 +520,97 @@ impl Game {
                 Rgba::BLACK,
             );
         }
+        let padding = 0.2;
+        let font_size = 0.5;
+        let outline_size = 0.03;
+
+        // Time
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &{
+                let millis = self.cat_move_time.max(0.0) * 1000.0;
+                let millis = millis as i64;
+                let secs = millis / 1000;
+                let millis = millis % 1000;
+                format!("{secs}:{millis}")
+            },
+            ui_aabb.top_left() + vec2(padding, -font_size - padding),
+            geng::TextAlign::LEFT,
+            font_size,
+            Rgba::WHITE,
+            outline_size,
+            Rgba::BLACK,
+        );
+
+        let Numbers {
+            players_left,
+            spectators,
+            bots,
+            qualified,
+        } = self.numbers;
+        let to_be_qualified = self.round.to_be_qualified;
+
+        // Qualified numbers
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &format!("Qualified: {qualified}/{to_be_qualified}"),
+            vec2(0.0, ui_aabb.max.y - font_size - padding),
+            geng::TextAlign::CENTER,
+            font_size,
+            Rgba::WHITE,
+            outline_size,
+            Rgba::BLACK,
+        );
+        if self.placement != 0 {
+            self.geng.default_font().draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &format!("Your place: {}", self.placement),
+                vec2(0.0, ui_aabb.max.y - font_size * 2.0 - padding),
+                geng::TextAlign::CENTER,
+                1.0,
+                Rgba::WHITE,
+                0.05,
+                Rgba::BLACK,
+            );
+        }
+
+        // Num of players
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &format!("Players Left: {players_left}"),
+            ui_aabb.top_right() - vec2(padding, font_size + padding),
+            geng::TextAlign::RIGHT,
+            font_size,
+            Rgba::WHITE,
+            outline_size,
+            Rgba::BLACK,
+        );
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &format!("Spectators: {spectators}"),
+            ui_aabb.top_right() - vec2(padding, font_size * 2.0 + padding),
+            geng::TextAlign::RIGHT,
+            font_size,
+            Rgba::WHITE,
+            outline_size,
+            Rgba::BLACK,
+        );
+        self.geng.default_font().draw_with_outline(
+            framebuffer,
+            ui_camera,
+            &format!("Bots: {bots}"),
+            ui_aabb.top_right() - vec2(padding, font_size * 3.0 + padding),
+            geng::TextAlign::RIGHT,
+            font_size,
+            Rgba::WHITE,
+            outline_size,
+            Rgba::BLACK,
+        );
 
         for &[p1, p2] in &self.level.segments {
             self.geng.draw_2d(
@@ -645,8 +672,6 @@ impl geng::State for Game {
         for player in self.remote_players.values_mut() {
             player.update(delta_time);
         }
-
-        self.bots_time += delta_time;
 
         self.update_my_player(delta_time);
 
@@ -729,11 +754,6 @@ impl geng::State for Game {
                 if self.geng.window().is_key_pressed(geng::Key::LCtrl) && self.args.editor =>
             {
                 self.level.save(run_dir().join("level.json"));
-                serde_json::to_writer(
-                    std::fs::File::create(run_dir().join("bots.json")).unwrap(),
-                    &self.bots_data,
-                )
-                .unwrap();
             }
             geng::Event::KeyDown { key: geng::Key::E } if self.args.editor => {
                 let pos = self.camera.screen_to_world(
@@ -772,7 +792,7 @@ impl geng::State for Game {
         }
         let settings_button = settings_button
             .uniform_padding(padding)
-            .align(vec2(0.0, 1.0));
+            .align(vec2(1.0, 0.0));
         if self.in_settings {
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {

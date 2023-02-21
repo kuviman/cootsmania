@@ -17,17 +17,27 @@ pub enum ClientMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Numbers {
+    pub players_left: usize,
+    pub spectators: usize,
+    pub bots: usize,
+    pub qualified: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Round {
+    pub track: Track,
+    pub to_be_qualified: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerMessage {
     Pong,
     UpdatePlayer(Id, Option<Player>),
     Disconnect(Id),
-    UpdateCat {
-        bots: usize,
-        location: Option<usize>,
-        move_time: f32,
-    },
     YouHaveBeenEliminated,
     YouHaveBeenRespawned(vec2<f32>),
-    YouScored(i32),
-    UpdatePlacement(usize),
+    Numbers(Numbers), // TODO
+    NewRound(Round),
+    YouHaveBeenQualified,
 }
