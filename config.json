@@ -1,4 +1,7 @@
 {
+    "nameplate_size": 0.5,
+    "nameplate_outline_size": 0.03,
+    "max_name_len": 15,
     "rotation_speed": 5,
     "acceleration": 20,
     "backward_acceleration": 5,

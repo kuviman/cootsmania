@@ -1,6 +1,7 @@
 use super::*;
 
 struct Client {
+    name: String,
     pos: Option<vec2<f32>>,
     current_replay: bots::MoveData,
     sender: Box<dyn geng::net::Sender<ServerMessage>>,
@@ -304,6 +305,14 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
             ClientMessage::UpdatePlayer(player) => {
                 state.update_player(self.id, player);
             }
+            ClientMessage::Name(name) => {
+                state.clients.get_mut(&self.id).unwrap().name = name.clone();
+                for client in state.clients.values_mut() {
+                    client
+                        .sender
+                        .send(ServerMessage::Name(self.id, name.clone()));
+                }
+            }
         }
     }
 }
@@ -314,13 +323,17 @@ impl geng::net::server::App for App {
     type ClientMessage = ClientMessage;
     fn connect(
         &mut self,
-        sender: Box<dyn geng::net::Sender<Self::ServerMessage>>,
+        mut sender: Box<dyn geng::net::Sender<Self::ServerMessage>>,
     ) -> ClientConnection {
         let mut state = self.state.lock().unwrap();
+        for (&id, client) in &state.clients {
+            sender.send(ServerMessage::Name(id, client.name.clone()));
+        }
         let id = state.next_id;
         state.clients.insert(
             id,
             Client {
+                name: String::new(),
                 current_replay: bots::MoveData::new(),
                 pos: None,
                 sender,

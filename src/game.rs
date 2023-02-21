@@ -177,6 +177,7 @@ pub struct Game {
     level: Level,
     args: Args,
     start_drag: Option<vec2<f32>>,
+    names: HashMap<Id, String>,
     framebuffer_size: vec2<f32>,
     remote_players: HashMap<Id, RemotePlayer>,
     cat_move_time: f32,
@@ -189,6 +190,7 @@ pub struct Game {
     music: MusicState,
     round: Round,
     numbers: Numbers,
+    name: String,
 }
 
 impl Game {
@@ -202,7 +204,7 @@ impl Game {
         args: Args,
     ) -> Self {
         connection.send(ClientMessage::Ping);
-        let volume = 0.5;
+        let volume = preferences::load("volume").unwrap_or(0.5);
         geng.audio().set_volume(volume);
         Self {
             geng: geng.clone(),
@@ -229,7 +231,11 @@ impl Game {
             text: None,
             score: 0,
             placement: 0,
-            skin: thread_rng().gen_range(0..assets.player.len()),
+            skin: preferences::load("skin").unwrap_or_else(|| {
+                let skin: usize = thread_rng().gen_range(0..assets.player.len());
+                preferences::save("skin", &skin);
+                skin
+            }),
             in_settings: false,
             volume,
             music: MusicState::start(assets, 0),
@@ -243,6 +249,8 @@ impl Game {
                 track: Track { from: 0, to: 1 },
                 to_be_qualified: 0,
             },
+            names: default(),
+            name: preferences::load("name").unwrap_or(String::new()),
         }
     }
 
@@ -254,6 +262,9 @@ impl Game {
                 _ => info!("{message:?}"),
             }
             match message {
+                ServerMessage::Name(id, name) => {
+                    self.names.insert(id, name);
+                }
                 ServerMessage::Pong => {
                     self.connection.send(ClientMessage::Ping);
                     if let Some(player) = &self.player {
@@ -319,10 +330,10 @@ impl Game {
         framebuffer: &mut ugli::Framebuffer,
         camera: &geng::Camera2d,
         player: &Player,
-        me: bool,
+        id: Option<Id>, // None = me
     ) {
         if let Some(texture) = self.assets.player.get(player.skin) {
-            if me {
+            if id.is_none() {
                 self.geng.draw_2d(
                     framebuffer,
                     camera,
@@ -337,7 +348,7 @@ impl Game {
                 camera,
                 &draw_2d::TexturedQuad::unit_colored(
                     texture,
-                    if me {
+                    if id.is_none() {
                         Rgba::WHITE
                     } else {
                         Rgba::new(1.0, 1.0, 1.0, 0.5)
@@ -345,6 +356,21 @@ impl Game {
                 )
                 .scale_uniform(self.config.player_radius)
                 .translate(player.pos),
+            );
+
+            self.geng.default_font().draw_with_outline(
+                framebuffer,
+                camera,
+                match id {
+                    None => &self.name,
+                    Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
+                },
+                player.pos + vec2(0.0, self.config.player_radius),
+                geng::TextAlign::CENTER,
+                self.config.nameplate_size,
+                Rgba::WHITE,
+                self.config.nameplate_outline_size,
+                Rgba::BLACK,
             );
         }
     }
@@ -452,8 +478,8 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_floor),
         );
 
-        for player in self.remote_players.values() {
-            self.draw_player(framebuffer, camera, &player.get(), false);
+        for (&id, player) in &self.remote_players {
+            self.draw_player(framebuffer, camera, &player.get(), Some(id));
         }
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
             self.geng.draw_2d(
@@ -468,7 +494,7 @@ impl Game {
             error!("Cat location not found!");
         }
         if let Some(player) = &self.player {
-            self.draw_player(framebuffer, camera, player, true);
+            self.draw_player(framebuffer, camera, player, None);
         }
 
         self.geng.draw_2d(
@@ -787,6 +813,21 @@ impl geng::State for Game {
                 self.music
                     .change((self.music.current_index + 1) % self.assets.music.len());
             }
+            geng::Event::KeyDown { key } if self.in_settings => {
+                let old_name = self.name.clone();
+                if key == geng::Key::Backspace {
+                    self.name.pop();
+                } else if self.name.len() < self.config.max_name_len {
+                    let c = format!("{key:?}");
+                    if c.len() == 1 {
+                        self.name.push_str(&c);
+                    }
+                }
+                if self.name != old_name {
+                    preferences::save("name", &self.name);
+                    self.connection.send(ClientMessage::Name(self.name.clone()));
+                }
+            }
             _ => {}
         }
     }
@@ -805,6 +846,7 @@ impl geng::State for Game {
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
                 self.skin = (self.skin + self.assets.player.len() - 1) % self.assets.player.len();
+                preferences::save("skin", &self.skin);
             }
             let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 1.0);
             if skin_button_next.was_clicked() {
@@ -833,6 +875,7 @@ impl geng::State for Game {
                     0.0..=1.0,
                     Box::new(|new_value| {
                         self.volume = new_value;
+                        preferences::save("volume", &self.volume);
                         self.geng.audio().set_volume(new_value);
                     }),
                 )
@@ -844,7 +887,19 @@ impl geng::State for Game {
                 .center(),
             )
                 .row();
-            let settings = (skin_settings.center(), volume_settings.center())
+            let settings = (
+                Text::new(
+                    self.name.as_str(),
+                    self.geng.default_font(),
+                    1.0,
+                    Rgba::WHITE,
+                )
+                .fixed_size(vec2(10.0, 1.0))
+                .uniform_padding(padding)
+                .center(),
+                skin_settings.center(),
+                volume_settings.center(),
+            )
                 .column()
                 .center();
             stack![settings_button, settings].boxed()

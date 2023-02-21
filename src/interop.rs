@@ -14,6 +14,7 @@ pub struct Player {
 pub enum ClientMessage {
     Ping,
     UpdatePlayer(Player),
+    Name(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -40,4 +41,5 @@ pub enum ServerMessage {
     Numbers(Numbers), // TODO
     NewRound(Round),
     YouHaveBeenQualified,
+    Name(Id, String),
 }
