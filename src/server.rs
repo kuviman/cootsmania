@@ -97,7 +97,10 @@ impl State {
         for (id, player) in bot_updates {
             self.update_player(id, player);
         }
-        if self.players.len() == self.qualified_players.len() {
+
+        if self.qualified_players.len() >= self.round.to_be_qualified
+            || self.players.len() == self.qualified_players.len()
+        {
             self.end_round();
         }
     }
@@ -145,11 +148,7 @@ impl State {
                 client.sender.send(ServerMessage::UpdatePlayer(id, None));
             }
         }
-        assert!(self.qualified_players.len() < self.round.to_be_qualified);
         self.qualified_players.insert(id);
-        if self.qualified_players.len() == self.round.to_be_qualified {
-            self.end_round();
-        }
         self.update_numbers();
     }
     fn time_up(&mut self) {
@@ -193,7 +192,7 @@ impl State {
         }
 
         for (&id, client) in &mut self.clients {
-            if !self.qualified_players.contains(&id) {
+            if !self.qualified_players.contains(&id) && client.pos.is_some() {
                 client.sender.send(ServerMessage::YouHaveBeenEliminated);
             }
         }
