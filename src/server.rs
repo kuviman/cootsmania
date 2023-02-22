@@ -117,7 +117,8 @@ impl State {
     fn new_round_from(&mut self, from: usize) {
         self.round = Round {
             track: self.level.random_track_from(from),
-            to_be_qualified: (self.players.len() + 1) / 2,
+            to_be_qualified: self.players.len()
+                - (self.players.len() as f32 * self.config.elimination_ratio) as usize,
         };
         for client in self.clients.values_mut() {
             client

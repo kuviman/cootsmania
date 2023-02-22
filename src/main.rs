@@ -64,6 +64,7 @@ pub struct Config {
     pub replay_fps: f32,
     pub server_recordings: bool,
     pub map_scale: f32,
+    pub elimination_ratio: f32,
 }
 
 #[derive(clap::Parser)]
