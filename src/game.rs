@@ -182,6 +182,7 @@ pub struct Game {
     spectating: bool,
     music_muted: bool,
     music: Option<geng::SoundEffect>,
+    drift_sfx: geng::SoundEffect,
 }
 
 impl Game {
@@ -245,6 +246,12 @@ impl Game {
             },
             names: default(),
             name: preferences::load("name").unwrap_or(String::new()),
+            drift_sfx: {
+                let mut effect = assets.sfx.drift.effect();
+                effect.set_volume(0.0);
+                effect.play();
+                effect
+            },
         }
     }
 
@@ -382,7 +389,13 @@ impl Game {
             self.camera.center += (vec2::ZERO - self.camera.center)
                 * (self.config.camera_speed * delta_time).min(1.0);
         }
-        let Some(player) = &mut self.player else { return };
+        let player = match &mut self.player {
+            Some(player) => player,
+            None => {
+                self.drift_sfx.set_volume(0.0);
+                return;
+            }
+        };
 
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
@@ -451,6 +464,13 @@ impl Game {
             (target_forward_vel - forward_vel).clamp_abs(forward_acceleration.abs() * delta_time);
 
         let mut drift_vel = vec2::skew(dir, player.vel);
+        self.drift_sfx
+            .set_volume(self.config.drift_sfx.get(drift_vel.abs()));
+        self.drift_sfx.set_speed(
+            (self.config.drift_sfx_pitch.get(drift_vel.abs()) * 2.0 - 1.0)
+                * self.config.drift_speed_change
+                + 1.0,
+        );
         drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
 
         player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
@@ -483,14 +503,11 @@ impl Game {
         if let Some(Collision { n, penetration }) = collision {
             player.pos += n * penetration;
             let v = vec2::dot(n, player.vel);
-            let sfx_volume =
-                (v.abs() - self.config.bounce_sfx_speed_min) / (self.config.bounce_sfx_speed_max);
+            let sfx_volume = self.config.bounce_sfx.get(v.abs());
             if sfx_volume > 0.0 {
                 let mut effect = self.assets.sfx.bounce.effect();
                 effect.set_speed(thread_rng().gen_range(0.8..1.2));
-                effect.set_volume(
-                    sfx_volume.clamp(0.0, 1.0) as f64 * self.config.bounce_sfx_volume as f64,
-                );
+                effect.set_volume(sfx_volume);
                 effect.play();
             }
             player.vel -= n * v * (1.0 + self.config.collision_bounciness);

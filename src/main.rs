@@ -38,6 +38,19 @@ impl Level {
     }
 }
 
+#[derive(Deserialize)]
+pub struct SfxConfig {
+    pub min: f32,
+    pub max: f32,
+    pub volume: f32,
+}
+
+impl SfxConfig {
+    pub fn get(&self, value: f32) -> f64 {
+        (((value - self.min) / (self.max - self.min)).clamp(0.0, 1.0) * self.volume) as f64
+    }
+}
+
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
 pub struct Config {
@@ -65,10 +78,11 @@ pub struct Config {
     pub server_recordings: bool,
     pub map_scale: f32,
     pub elimination_ratio: f32,
-    pub bounce_sfx_speed_min: f32,
-    pub bounce_sfx_speed_max: f32,
-    pub bounce_sfx_volume: f32,
+    pub bounce_sfx: SfxConfig,
+    pub drift_sfx: SfxConfig,
+    pub drift_sfx_pitch: SfxConfig,
     pub music_volume: f32,
+    pub drift_speed_change: f64,
 }
 
 #[derive(clap::Parser)]
