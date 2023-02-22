@@ -13,6 +13,7 @@
     "collision_bounciness": 1.0,
     "camera_speed": 5,
     "cat_move_time": 20,
+    "elimination_ratio": 0.3,
     "cat_move_time_change": 0.5,
     "camera_fov": 20,
     "arrow_size": 2,
