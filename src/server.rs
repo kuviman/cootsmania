@@ -120,7 +120,7 @@ impl State {
             to_be_qualified: self.players.len()
                 - ((self.players.len() as f32 * self.config.elimination_ratio) as usize)
                     .max(1)
-                    .min(self.player.len()),
+                    .min(self.players.len()),
         };
         for client in self.clients.values_mut() {
             client
