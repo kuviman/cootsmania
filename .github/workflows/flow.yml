@@ -20,7 +20,7 @@ jobs:
           name: web
           path: target/geng
       - run: cargo geng build --release
-      - run: cp -r assets config.json level.json bots.data target/geng/ # because of
+      - run: cp -r assets config.json level.json target/geng/ # because of
       - name: Upload artifacts (linux)
         uses: actions/upload-artifact@v2
         with:
