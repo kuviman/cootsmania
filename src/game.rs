@@ -297,6 +297,12 @@ impl Game {
                         self.spectating = true;
                     }
                 }
+                ServerMessage::NewSessionAboutToBegin => {
+                    if !self.args.editor {
+                        self.player = None;
+                        self.spectating = true;
+                    }
+                }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
                     if !self.args.editor {
                         self.score = 0;
@@ -525,6 +531,13 @@ impl Game {
                     &draw_2d::TexturedQuad::unit(&self.assets.arrow)
                         .scale_uniform(self.config.arrow_size)
                         .rotate((pos - arrow_pos).arg())
+                        .translate(arrow_pos),
+                );
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.coots)
+                        .scale_uniform(self.config.arrow_size * 0.5)
                         .translate(arrow_pos),
                 );
             }

@@ -202,6 +202,9 @@ impl State {
         self.players
             .retain(|id| self.qualified_players.contains(id));
         if self.players.len() <= 1 {
+            for client in self.clients.values_mut() {
+                client.sender.send(ServerMessage::NewSessionAboutToBegin);
+            }
             self.new_session_timer = Some(Timer::new());
         } else {
             self.new_round_from(self.round.track.to);

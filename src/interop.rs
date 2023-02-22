@@ -42,4 +42,5 @@ pub enum ServerMessage {
     NewRound(Round),
     YouHaveBeenQualified,
     Name(Id, String),
+    NewSessionAboutToBegin,
 }
