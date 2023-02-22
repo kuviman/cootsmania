@@ -81,14 +81,17 @@ pub struct Config {
     pub bounce_sfx: SfxConfig,
     pub drift_sfx: SfxConfig,
     pub drift_sfx_pitch: SfxConfig,
-    pub music_volume: f32,
     pub drift_speed_change: f64,
+    pub music_volume: f32,
     pub particle_size: f32,
     pub drift_particles: f32,
     pub particle_drag: f32,
     pub particle_rng: f32,
     pub particle_lifespan: f32,
     pub particle_alpha: f32,
+    pub forward_sfx: SfxConfig,
+    pub forward_sfx_pitch: SfxConfig,
+    pub forward_speed_change: f64,
 }
 
 #[derive(clap::Parser)]

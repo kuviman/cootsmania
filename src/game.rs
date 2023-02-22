@@ -53,6 +53,8 @@ pub struct SfxAssets {
     pub new_round: geng::Sound,
     #[asset(ext = "mp3")]
     pub qualified: geng::Sound,
+    #[asset(ext = "mp3", postprocess = "make_looped")]
+    pub forward_move: geng::Sound,
 }
 
 #[derive(geng::Assets)]
@@ -248,6 +250,7 @@ pub struct Game {
     music_muted: bool,
     music: Option<geng::SoundEffect>,
     drift_sfx: geng::SoundEffect,
+    forward_sfx: geng::SoundEffect,
     next_drift_particle: f32,
     particles: Particles,
 }
@@ -315,6 +318,12 @@ impl Game {
             name: preferences::load("name").unwrap_or(String::new()),
             drift_sfx: {
                 let mut effect = assets.sfx.drift.effect();
+                effect.set_volume(0.0);
+                effect.play();
+                effect
+            },
+            forward_sfx: {
+                let mut effect = assets.sfx.forward_move.effect();
                 effect.set_volume(0.0);
                 effect.play();
                 effect
@@ -462,6 +471,7 @@ impl Game {
             Some(player) => player,
             None => {
                 self.drift_sfx.set_volume(0.0);
+                self.forward_sfx.set_volume(0.0);
                 return;
             }
         };
@@ -551,6 +561,14 @@ impl Game {
             self.next_drift_particle += 1.0 / self.config.drift_particles;
             self.particles.push(player.pos, player.vel);
         }
+        let forward_value = forward_vel.abs();
+        self.forward_sfx
+            .set_volume(self.config.forward_sfx.get(forward_value));
+        self.forward_sfx.set_speed(
+            (self.config.forward_sfx_pitch.get(forward_value) * 2.0 - 1.0)
+                * self.config.forward_speed_change
+                + 1.0,
+        );
 
         player.pos += player.vel * delta_time;
         #[derive(PartialEq)]
