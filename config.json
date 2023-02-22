@@ -25,5 +25,9 @@
     "server_recordings": true,
     "map_scale": 30,
     "new_session_time": 3,
-    "zoom_speed": 100
+    "zoom_speed": 100,
+    "bounce_sfx_speed_min": 2,
+    "bounce_sfx_speed_max": 4,
+    "bounce_sfx_volume": 2,
+    "music_volume": 0.5
 }

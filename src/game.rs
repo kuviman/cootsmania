@@ -40,6 +40,22 @@ impl Level {
 }
 
 #[derive(geng::Assets)]
+pub struct SfxAssets {
+    #[asset(ext = "mp3")]
+    pub bounce: geng::Sound,
+    #[asset(ext = "mp3", postprocess = "make_looped")]
+    pub drift: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub eliminated: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub game_start: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub new_round: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub qualified: geng::Sound,
+}
+
+#[derive(geng::Assets)]
 pub struct UiAssets {
     left: ugli::Texture,
     right: ugli::Texture,
@@ -55,6 +71,7 @@ pub struct UiAssets {
 
 #[derive(geng::Assets)]
 pub struct Assets {
+    pub sfx: SfxAssets,
     map_floor: ugli::Texture,
     map_furniture_front: ugli::Texture,
     map_furniture_back: ugli::Texture,
@@ -139,41 +156,6 @@ impl RemotePlayer {
     }
 }
 
-struct MusicState {
-    assets: Rc<Assets>,
-    current_index: usize,
-    effect: geng::SoundEffect,
-    timer: Timer,
-    offset: Duration,
-}
-
-impl MusicState {
-    pub fn start(assets: &Rc<Assets>, index: usize) -> Self {
-        Self {
-            assets: assets.clone(),
-            current_index: index,
-            effect: assets.music[index].play(),
-            timer: Timer::new(),
-            offset: Duration::from_secs_f64(0.0),
-        }
-    }
-    pub fn change(&mut self, index: usize) {
-        let current_offset = self.offset + self.timer.tick();
-        self.offset = Duration::from_secs_f64(
-            (current_offset.as_secs_f64()
-                / self.assets.music[self.current_index]
-                    .duration()
-                    .as_secs_f64())
-            .fract()
-                * self.assets.music[index].duration().as_secs_f64(),
-        );
-        self.effect.stop();
-        self.effect = self.assets.music[index].effect();
-        self.effect.play_from(self.offset);
-        self.current_index = index;
-    }
-}
-
 pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
@@ -194,11 +176,12 @@ pub struct Game {
     skin: usize,
     in_settings: bool,
     volume: f64,
-    music: MusicState,
     round: Round,
     numbers: Numbers,
     name: String,
     spectating: bool,
+    music_muted: bool,
+    music: Option<geng::SoundEffect>,
 }
 
 impl Game {
@@ -214,7 +197,10 @@ impl Game {
         connection.send(ClientMessage::Ping);
         let volume = preferences::load("volume").unwrap_or(0.5);
         geng.audio().set_volume(volume);
+        let music_muted: bool = preferences::load("music_muted").unwrap_or(false);
         Self {
+            music_muted,
+            music: None,
             geng: geng.clone(),
             assets: assets.clone(),
             level,
@@ -247,7 +233,6 @@ impl Game {
             }),
             in_settings: false,
             volume,
-            music: MusicState::start(assets, 0),
             numbers: Numbers {
                 players_left: 0,
                 spectators: 0,
@@ -471,15 +456,44 @@ impl Game {
         player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
 
         player.pos += player.vel * delta_time;
+        #[derive(PartialEq)]
+        struct Collision {
+            n: vec2<f32>,
+            penetration: f32,
+        }
+        impl PartialOrd for Collision {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(
+                    self.penetration
+                        .partial_cmp(&other.penetration)
+                        .unwrap()
+                        .reverse(),
+                )
+            }
+        }
+        let mut collision = None;
         for &[p1, p2] in &self.level.segments {
             let v = -vector_from(player.pos, p1, p2);
             let penetration = self.config.player_radius - v.len();
             let n = v.normalize_or_zero();
             if penetration > 0.0 {
-                player.pos += n * penetration;
-                player.vel -=
-                    n * vec2::dot(n, player.vel) * (1.0 + self.config.collision_bounciness);
+                collision = partial_max(collision, Some(Collision { n, penetration }));
             }
+        }
+        if let Some(Collision { n, penetration }) = collision {
+            player.pos += n * penetration;
+            let v = vec2::dot(n, player.vel);
+            let sfx_volume =
+                (v.abs() - self.config.bounce_sfx_speed_min) / (self.config.bounce_sfx_speed_max);
+            if sfx_volume > 0.0 {
+                let mut effect = self.assets.sfx.bounce.effect();
+                effect.set_speed(thread_rng().gen_range(0.8..1.2));
+                effect.set_volume(
+                    sfx_volume.clamp(0.0, 1.0) as f64 * self.config.bounce_sfx_volume as f64,
+                );
+                effect.play();
+            }
+            player.vel -= n * v * (1.0 + self.config.collision_bounciness);
         }
     }
 
@@ -744,6 +758,17 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
 
+        if self.music_muted {
+            if let Some(mut music) = self.music.take() {
+                music.stop();
+            }
+        } else if self.music.is_none() {
+            let mut music = self.assets.music[1].effect();
+            music.set_volume(self.config.music_volume as f64);
+            music.play();
+            self.music = Some(music);
+        }
+
         self.cat_move_time -= delta_time;
 
         let target_fov = if !self.spectating {
@@ -867,11 +892,8 @@ impl geng::State for Game {
                     );
                 }
             }
-            geng::Event::KeyDown {
-                key: geng::Key::Space,
-            } => {
-                self.music
-                    .change((self.music.current_index + 1) % self.assets.music.len());
+            geng::Event::KeyDown { key: geng::Key::M } => {
+                self.music_muted = !self.music_muted; // TODO ui
             }
             geng::Event::KeyDown { key } if self.in_settings => {
                 let old_name = self.name.clone();

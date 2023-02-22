@@ -65,6 +65,10 @@ pub struct Config {
     pub server_recordings: bool,
     pub map_scale: f32,
     pub elimination_ratio: f32,
+    pub bounce_sfx_speed_min: f32,
+    pub bounce_sfx_speed_max: f32,
+    pub bounce_sfx_volume: f32,
+    pub music_volume: f32,
 }
 
 #[derive(clap::Parser)]
