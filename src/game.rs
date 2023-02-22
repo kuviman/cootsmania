@@ -646,12 +646,14 @@ impl Game {
             Rgba::BLACK,
         );
 
-        for &[p1, p2] in &self.level.segments {
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
-            );
+        if self.args.editor {
+            for &[p1, p2] in &self.level.segments {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::Segment::new(Segment(p1, p2), 0.1, Rgba::WHITE),
+                );
+            }
         }
 
         if self.args.editor {
@@ -806,6 +808,14 @@ impl geng::State for Game {
                 self.level
                     .cat_locations
                     .retain(|&p| (p - pos).len() > SNAP_DISTANCE);
+            }
+            geng::Event::KeyDown { key: geng::Key::T } if self.args.editor => {
+                if let Some(player) = &mut self.player {
+                    player.pos = self.camera.screen_to_world(
+                        self.framebuffer_size,
+                        self.geng.window().mouse_pos().map(|x| x as f32),
+                    );
+                }
             }
             geng::Event::KeyDown {
                 key: geng::Key::Space,
