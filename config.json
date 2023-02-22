@@ -10,7 +10,7 @@
     "max_speed": 15,
     "max_backward_speed": 5,
     "player_radius": 0.8,
-    "collision_bounciness": 0.3,
+    "collision_bounciness": 1.0,
     "camera_speed": 5,
     "cat_move_time": 20,
     "cat_move_time_change": 0.5,
@@ -23,5 +23,6 @@
     "replay_fps": 10,
     "server_recordings": true,
     "map_scale": 30,
-    "new_session_time": 3
+    "new_session_time": 3,
+    "zoom_speed": 100
 }

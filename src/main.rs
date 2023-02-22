@@ -41,6 +41,7 @@ impl Level {
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
 pub struct Config {
+    pub zoom_speed: f32,
     pub nameplate_size: f32,
     pub nameplate_outline_size: f32,
     pub max_name_len: usize,

@@ -191,6 +191,7 @@ pub struct Game {
     round: Round,
     numbers: Numbers,
     name: String,
+    spectating: bool,
 }
 
 impl Game {
@@ -223,6 +224,7 @@ impl Game {
                 rotation: 0.0,
                 fov: config.camera_fov,
             },
+            spectating: !args.editor,
             args,
             start_drag: None,
             framebuffer_size: vec2(1.0, 1.0),
@@ -292,6 +294,7 @@ impl Game {
                     if !self.args.editor {
                         self.player = None;
                         self.text = Some(("You have been eliminated".to_owned(), 0.0));
+                        self.spectating = true;
                     }
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
@@ -305,6 +308,7 @@ impl Game {
                             rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                         });
                         self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
+                        self.spectating = false;
                     }
                 }
                 ServerMessage::Numbers(numbers) => {
@@ -376,6 +380,10 @@ impl Game {
     }
 
     fn update_my_player(&mut self, delta_time: f32) {
+        if self.spectating {
+            self.camera.center += (vec2::ZERO - self.camera.center)
+                * (self.config.camera_speed * delta_time).min(1.0);
+        }
         let Some(player) = &mut self.player else { return };
 
         self.camera.center +=
@@ -703,6 +711,14 @@ impl geng::State for Game {
         let delta_time = delta_time as f32;
 
         self.cat_move_time -= delta_time;
+
+        let target_fov = if !self.spectating {
+            self.config.camera_fov
+        } else {
+            self.config.map_scale * 2.0
+        };
+        self.camera.fov +=
+            (target_fov - self.camera.fov).clamp_abs(self.config.zoom_speed * delta_time);
 
         self.update_connection();
         for player in self.remote_players.values_mut() {
