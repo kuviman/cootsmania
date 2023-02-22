@@ -47,12 +47,17 @@ pub struct UiAssets {
     volume: ugli::Texture,
     slider_line: ugli::Texture,
     slider_knob: ugli::Texture,
+    bots: ugli::Texture,
+    spectators: ugli::Texture,
+    players_left: ugli::Texture,
+    time: ugli::Texture,
 }
 
 #[derive(geng::Assets)]
 pub struct Assets {
     map_floor: ugli::Texture,
-    map_furniture: ugli::Texture,
+    map_furniture_front: ugli::Texture,
+    map_furniture_back: ugli::Texture,
     coots: ugli::Texture,
     arrow: ugli::Texture,
     #[asset(load_with = "load_player_assets(&geng, base_path.join(\"player\"))")]
@@ -365,7 +370,7 @@ impl Game {
                     },
                 )
                 .scale_uniform(self.config.player_radius)
-                .translate(player.pos),
+                .translate(player.pos + vec2(0.0, self.config.player_radius)),
             );
 
             self.geng.default_font().draw_with_outline(
@@ -375,7 +380,7 @@ impl Game {
                     None => &self.name,
                     Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
                 },
-                player.pos + vec2(0.0, self.config.player_radius),
+                player.pos + vec2(0.0, self.config.player_radius * 2.0),
                 geng::TextAlign::CENTER,
                 self.config.nameplate_size,
                 Rgba::WHITE,
@@ -491,6 +496,11 @@ impl Game {
             camera,
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_floor),
         );
+        self.geng.draw_2d(
+            framebuffer,
+            camera,
+            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_back),
+        );
 
         for (&id, player) in &self.remote_players {
             self.draw_player(framebuffer, camera, &player.get(), Some(id));
@@ -514,7 +524,7 @@ impl Game {
         self.geng.draw_2d(
             framebuffer,
             camera,
-            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture),
+            &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_front),
         );
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
@@ -580,6 +590,15 @@ impl Game {
         let outline_size = 0.03;
 
         // Time
+        self.geng.draw_2d(
+            framebuffer,
+            ui_camera,
+            &draw_2d::TexturedQuad::new(
+                Aabb2::point(ui_aabb.top_left() + vec2(padding, -padding - font_size))
+                    .extend_positive(vec2(font_size, font_size)),
+                &self.assets.ui.time,
+            ),
+        );
         self.geng.default_font().draw_with_outline(
             framebuffer,
             ui_camera,
@@ -590,7 +609,7 @@ impl Game {
                 let millis = millis % 1000;
                 format!("{secs}:{millis}")
             },
-            ui_aabb.top_left() + vec2(padding, -font_size - padding),
+            ui_aabb.top_left() + vec2(padding + font_size, -font_size - padding),
             geng::TextAlign::LEFT,
             font_size,
             Rgba::WHITE,
