@@ -70,6 +70,8 @@ pub struct Assets {
         postprocess = "make_each_looped"
     )]
     music: Vec<geng::Sound>,
+    #[asset(path = "font/Pangolin-Regular.ttf")]
+    font: Rc<geng::Font>,
 }
 
 fn make_looped(sound: &mut geng::Sound) {
@@ -373,7 +375,7 @@ impl Game {
                 .translate(player.pos + vec2(0.0, self.config.player_radius)),
             );
 
-            self.geng.default_font().draw_with_outline(
+            self.assets.font.draw_with_outline(
                 framebuffer,
                 camera,
                 match id {
@@ -559,7 +561,7 @@ impl Game {
             fov: 10.0,
         };
         let ui_aabb = ui_camera.view_area(self.framebuffer_size).bounding_box();
-        self.geng.default_font().draw(
+        self.assets.font.draw(
             framebuffer,
             ui_camera,
             if self.player.is_some() {
@@ -573,7 +575,7 @@ impl Game {
             Rgba::GRAY,
         );
         if let Some((ref text, t)) = self.text {
-            self.geng.default_font().draw_with_outline(
+            self.assets.font.draw_with_outline(
                 framebuffer,
                 ui_camera,
                 &text,
@@ -599,7 +601,7 @@ impl Game {
                 &self.assets.ui.time,
             ),
         );
-        self.geng.default_font().draw_with_outline(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             &{
@@ -626,7 +628,7 @@ impl Game {
         let to_be_qualified = self.round.to_be_qualified;
 
         // Qualified numbers
-        self.geng.default_font().draw_with_outline(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             &format!("Qualified: {qualified}/{to_be_qualified}"),
@@ -638,7 +640,7 @@ impl Game {
             Rgba::BLACK,
         );
         if self.placement != 0 {
-            self.geng.default_font().draw_with_outline(
+            self.assets.font.draw_with_outline(
                 framebuffer,
                 ui_camera,
                 &format!("Your place: {}", self.placement),
@@ -652,7 +654,7 @@ impl Game {
         }
 
         // Num of players
-        self.geng.default_font().draw_with_outline(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             &format!("Players Left: {players_left}"),
@@ -663,7 +665,7 @@ impl Game {
             outline_size,
             Rgba::BLACK,
         );
-        self.geng.default_font().draw_with_outline(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             &format!("Spectators: {spectators}"),
@@ -674,7 +676,7 @@ impl Game {
             outline_size,
             Rgba::BLACK,
         );
-        self.geng.default_font().draw_with_outline(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             &format!("Bots: {bots}"),
@@ -946,15 +948,10 @@ impl geng::State for Game {
             )
                 .row();
             let settings = (
-                Text::new(
-                    self.name.as_str(),
-                    self.geng.default_font(),
-                    1.0,
-                    Rgba::WHITE,
-                )
-                .fixed_size(vec2(10.0, 1.0))
-                .uniform_padding(padding)
-                .center(),
+                Text::new(self.name.as_str(), &self.assets.font, 1.0, Rgba::WHITE)
+                    .fixed_size(vec2(10.0, 1.0))
+                    .uniform_padding(padding)
+                    .center(),
                 skin_settings.center(),
                 volume_settings.center(),
             )
