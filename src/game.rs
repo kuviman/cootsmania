@@ -372,12 +372,14 @@ impl Game {
                         self.player = None;
                         self.text = Some(("You have been eliminated".to_owned(), 0.0));
                         self.spectating = true;
+                        self.assets.sfx.eliminated.play();
                     }
                 }
                 ServerMessage::NewSessionAboutToBegin => {
                     if !self.args.editor {
                         self.player = None;
                         self.spectating = true;
+                        self.assets.sfx.game_start.play();
                     }
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
@@ -401,11 +403,13 @@ impl Game {
                     self.round = round;
                     self.cat_move_time = self.config.cat_move_time as f32;
                     self.remote_players.clear();
+                    self.assets.sfx.new_round.play();
                 }
                 ServerMessage::YouHaveBeenQualified => {
                     if !self.args.editor {
                         self.player = None;
                         self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
+                        self.assets.sfx.qualified.play();
                     }
                 }
             }
