@@ -89,6 +89,7 @@ pub struct Assets {
     music: Vec<geng::Sound>,
     #[asset(path = "font/Pangolin-Regular.ttf")]
     font: Rc<geng::Font>,
+    particle: ugli::Texture,
 }
 
 fn make_looped(sound: &mut geng::Sound) {
@@ -156,6 +157,70 @@ impl RemotePlayer {
     }
 }
 
+struct Particle {
+    pos: vec2<f32>,
+    vel: vec2<f32>,
+    rot: f32,
+    t: f32,
+}
+
+struct Particles {
+    geng: Geng,
+    config: Rc<Config>,
+    assets: Rc<Assets>,
+    data: Vec<Particle>,
+}
+
+impl Particles {
+    fn new(geng: &Geng, config: &Rc<Config>, assets: &Rc<Assets>) -> Self {
+        Self {
+            assets: assets.clone(),
+            config: config.clone(),
+            geng: geng.clone(),
+            data: default(),
+        }
+    }
+    fn push(&mut self, pos: vec2<f32>, vel: vec2<f32>) {
+        self.data.push(Particle {
+            pos,
+            vel: thread_rng().gen_circle(vel, self.config.particle_rng),
+            t: 0.0,
+            rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
+        })
+    }
+    fn update(&mut self, delta_time: f32) {
+        for particle in &mut self.data {
+            particle.vel -= particle
+                .vel
+                .clamp_len(..=self.config.particle_drag * delta_time);
+            particle.pos += particle.vel * delta_time;
+            particle.t += delta_time / self.config.particle_lifespan;
+        }
+        self.data.retain(|particle| particle.t < 1.0);
+    }
+    fn draw(&self, framebuffer: &mut ugli::Framebuffer, camera: &geng::Camera2d) {
+        // TODO optimize
+        for particle in &self.data {
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::unit_colored(
+                    &self.assets.particle,
+                    Rgba::new(
+                        1.0,
+                        1.0,
+                        1.0,
+                        (1.0 - particle.t) * self.config.particle_alpha,
+                    ),
+                )
+                .scale_uniform(self.config.particle_size)
+                .rotate(particle.rot)
+                .translate(particle.pos),
+            )
+        }
+    }
+}
+
 pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
@@ -183,6 +248,8 @@ pub struct Game {
     music_muted: bool,
     music: Option<geng::SoundEffect>,
     drift_sfx: geng::SoundEffect,
+    next_drift_particle: f32,
+    particles: Particles,
 }
 
 impl Game {
@@ -252,6 +319,8 @@ impl Game {
                 effect.play();
                 effect
             },
+            next_drift_particle: 0.0,
+            particles: Particles::new(geng, config, assets),
         }
     }
 
@@ -464,16 +533,24 @@ impl Game {
             (target_forward_vel - forward_vel).clamp_abs(forward_acceleration.abs() * delta_time);
 
         let mut drift_vel = vec2::skew(dir, player.vel);
+        drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
+
+        let old_vel = player.vel;
+        player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
+
+        let drift_value = drift_vel.abs();
         self.drift_sfx
-            .set_volume(self.config.drift_sfx.get(drift_vel.abs()));
+            .set_volume(self.config.drift_sfx.get(drift_value));
         self.drift_sfx.set_speed(
-            (self.config.drift_sfx_pitch.get(drift_vel.abs()) * 2.0 - 1.0)
+            (self.config.drift_sfx_pitch.get(drift_value) * 2.0 - 1.0)
                 * self.config.drift_speed_change
                 + 1.0,
         );
-        drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
-
-        player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
+        self.next_drift_particle -= self.config.drift_sfx.get(drift_value) as f32 * delta_time;
+        while self.next_drift_particle < 0.0 {
+            self.next_drift_particle += 1.0 / self.config.drift_particles;
+            self.particles.push(player.pos, player.vel);
+        }
 
         player.pos += player.vel * delta_time;
         #[derive(PartialEq)]
@@ -514,7 +591,7 @@ impl Game {
         }
     }
 
-    fn draw_game(&self, framebuffer: &mut ugli::Framebuffer) {
+    fn draw_game(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
         let camera = &self.camera;
@@ -550,6 +627,7 @@ impl Game {
         } else {
             error!("Cat location not found!");
         }
+        self.particles.draw(framebuffer, camera);
         if let Some(player) = &self.player {
             self.draw_player(framebuffer, camera, player, None);
         }
@@ -774,6 +852,8 @@ impl Game {
 impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
+
+        self.particles.update(delta_time);
 
         if self.music_muted {
             if let Some(mut music) = self.music.take() {

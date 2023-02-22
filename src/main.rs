@@ -83,6 +83,12 @@ pub struct Config {
     pub drift_sfx_pitch: SfxConfig,
     pub music_volume: f32,
     pub drift_speed_change: f64,
+    pub particle_size: f32,
+    pub drift_particles: f32,
+    pub particle_drag: f32,
+    pub particle_rng: f32,
+    pub particle_lifespan: f32,
+    pub particle_alpha: f32,
 }
 
 #[derive(clap::Parser)]

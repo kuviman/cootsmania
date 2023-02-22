@@ -42,5 +42,11 @@
         "volume": 1
     },
     "music_volume": 0.5,
-    "drift_speed_change": 0.1
+    "drift_speed_change": 0.1,
+    "particle_size": 0.5,
+    "drift_particles": 10,
+    "particle_drag": 10,
+    "particle_rng": 2,
+    "particle_lifespan": 0.5,
+    "particle_alpha": 0.3
 }
