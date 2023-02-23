@@ -273,6 +273,7 @@ pub struct Game {
     forward_sfx: geng::SoundEffect,
     next_drift_particle: f32,
     particles: Particles,
+    t: f32,
 }
 
 impl Game {
@@ -359,6 +360,7 @@ impl Game {
             next_drift_particle: 0.0,
             particles: Particles::new(geng, config, assets),
             winner: None,
+            t: 0.0,
         }
     }
 
@@ -420,6 +422,7 @@ impl Game {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
+                    self.winner = None;
                     self.cat_move_time = self.config.cat_move_time as f32;
                     self.remote_players.clear();
                     self.assets.sfx.new_round.play();
@@ -686,20 +689,36 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_back),
         );
 
-        for (&id, player) in &self.remote_players {
-            self.draw_player(framebuffer, camera, &player.get(), Some(id));
-        }
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+            let mut pos = pos;
+            match self.winner {
+                Some(Winner::Me) => {
+                    if let Some(player) = &self.player {
+                        pos = player.pos;
+                    }
+                }
+                Some(Winner::Other(id)) => {
+                    if let Some(p) = self.remote_players.get(&id) {
+                        pos = p.get().pos;
+                    }
+                }
+                _ => {}
+            }
             self.geng.draw_2d(
                 framebuffer,
                 camera,
-                &draw_2d::TexturedQuad::new(
+                &draw_2d::TexturedQuad::colored(
                     Aabb2::point(pos).extend_uniform(self.config.player_radius),
                     &self.assets.coots,
+                    Rgba::new(0.0, 0.0, 0.0, 0.3),
                 ),
             );
         } else {
             error!("Cat location not found!");
+        }
+
+        for (&id, player) in &self.remote_players {
+            self.draw_player(framebuffer, camera, &player.get(), Some(id));
         }
         self.particles.draw(framebuffer, camera);
         if let Some(player) = &self.player {
@@ -711,6 +730,32 @@ impl Game {
             camera,
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_front),
         );
+
+        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+            let mut pos = pos;
+            match self.winner {
+                Some(Winner::Me) => {
+                    if let Some(player) = &self.player {
+                        pos = player.pos;
+                    }
+                }
+                Some(Winner::Other(id)) => {
+                    if let Some(p) = self.remote_players.get(&id) {
+                        pos = p.get().pos;
+                    }
+                }
+                _ => {}
+            }
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::new(
+                    Aabb2::point(pos + vec2(0.0, 3.0 + (self.t * 2.0).sin() * 0.2))
+                        .extend_uniform(self.config.player_radius * 2.0),
+                    &self.assets.coots,
+                ),
+            );
+        }
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
             if !camera_aabb.contains(pos) {
@@ -915,6 +960,7 @@ impl geng::State for Game {
         let delta_time = delta_time as f32;
 
         self.particles.update(delta_time);
+        self.t += delta_time;
 
         if self.music_on != self.music.is_some() {
             preferences::save("music_on", &self.music_on);
@@ -953,7 +999,6 @@ impl geng::State for Game {
             *time += delta_time;
             if *time > 1.0 {
                 self.text = None;
-                self.winner = None;
             }
         }
     }
