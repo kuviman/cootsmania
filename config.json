@@ -24,7 +24,7 @@
     "replay_fps": 10,
     "server_recordings": true,
     "map_scale": 30,
-    "new_session_time": 3,
+    "new_session_time": 7,
     "zoom_speed": 100,
     "bounce_sfx": {
         "min": 2,
