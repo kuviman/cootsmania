@@ -269,6 +269,8 @@ impl Game {
         let volume = preferences::load("volume").unwrap_or(0.5);
         geng.audio().set_volume(volume);
         let music_muted: bool = preferences::load("music_muted").unwrap_or(false);
+        let name = preferences::load("name").unwrap_or(String::new());
+        connection.send(ClientMessage::Name(name.clone()));
         Self {
             music_muted,
             music: None,
@@ -315,7 +317,7 @@ impl Game {
                 to_be_qualified: 0,
             },
             names: default(),
-            name: preferences::load("name").unwrap_or(String::new()),
+            name,
             drift_sfx: {
                 let mut effect = assets.sfx.drift.effect();
                 effect.set_volume(0.0);
