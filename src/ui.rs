@@ -79,6 +79,60 @@ impl geng::ui::Widget for TextureWidget<'_> {
     }
 }
 
+pub struct CarWidget<'a> {
+    texture: &'a ugli::Texture,
+    color_texture: &'a ugli::Texture,
+    color: Rgba<f32>,
+    size: f64,
+}
+
+impl<'a> CarWidget<'a> {
+    pub fn new(
+        texture: &'a ugli::Texture,
+        color_texture: &'a ugli::Texture,
+        color: Rgba<f32>,
+        size: f64,
+    ) -> Self {
+        Self {
+            texture,
+            color_texture,
+            color,
+            size,
+        }
+    }
+}
+
+impl geng::ui::Widget for CarWidget<'_> {
+    fn calc_constraints(&mut self, _cx: &geng::ui::ConstraintsContext) -> geng::ui::Constraints {
+        geng::ui::Constraints {
+            min_size: vec2(self.size, self.size),
+            flex: vec2::ZERO,
+        }
+    }
+    fn draw(&mut self, cx: &mut geng::ui::DrawContext) {
+        cx.geng.draw_2d(
+            cx.framebuffer,
+            &geng::PixelPerfectCamera,
+            &draw_2d::TexturedQuad::unit(self.texture)
+                .rotate(-f32::PI / 3.0)
+                .scale(vec2(1.0, 0.65)) // HARDCODE LUL
+                .translate(vec2(0.0, -0.5))
+                .scale_uniform(cx.position.width() as f32 / 2.0)
+                .translate(cx.position.center().map(|x| x as f32)),
+        );
+        cx.geng.draw_2d(
+            cx.framebuffer,
+            &geng::PixelPerfectCamera,
+            &draw_2d::TexturedQuad::unit_colored(self.color_texture, self.color)
+                .rotate(-f32::PI / 3.0)
+                .scale(vec2(1.0, 0.65)) // HARDCODE LUL
+                .translate(vec2(0.0, -0.5))
+                .scale_uniform(cx.position.width() as f32 / 2.0)
+                .translate(cx.position.center().map(|x| x as f32)),
+        );
+    }
+}
+
 pub struct CustomSlider<'a> {
     sense: &'a mut geng::ui::Sense,
     pos: &'a mut Option<Aabb2<f64>>,

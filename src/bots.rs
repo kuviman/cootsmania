@@ -1,9 +1,17 @@
 use super::*;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerSnapshot {
+    pub skin: usize,
+    pub pos: vec2<f32>,
+    pub vel: vec2<f32>,
+    pub rot: f32,
+}
+
 #[derive(Serialize, Deserialize)]
 struct TimedData {
     time: f32,
-    data: Player,
+    data: PlayerSnapshot,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -21,7 +29,15 @@ impl MoveData {
         Self { data: vec![] }
     }
     pub fn push(&mut self, time: f32, data: Player) {
-        self.data.push(TimedData { time, data });
+        self.data.push(TimedData {
+            time,
+            data: PlayerSnapshot {
+                skin: 0,
+                pos: data.pos,
+                vel: data.vel,
+                rot: data.rot,
+            },
+        });
     }
     pub fn get(&self, time: f32) -> Player {
         let index = match self
@@ -36,6 +52,7 @@ impl MoveData {
         let t = (time - p1.time) / (p2.time - p1.time);
         Player {
             skin: 0,
+            color: 0.0,
             pos: p1.data.pos * (1.0 - t) + p2.data.pos * t,
             vel: p1.data.vel * (1.0 - t) + p2.data.vel * t,
             rot: p1.data.rot * (1.0 - t) + p2.data.rot * t,

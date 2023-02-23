@@ -164,10 +164,9 @@ fn main() {
                         .load_asset(run_dir().join("level.json"))
                         .await
                         .expect("Failed to load level");
-                    let bots_data = bots::Data::load(run_dir().join("bots.json")).await;
                     let connection =
                         geng::net::client::connect(args.connect.as_deref().unwrap()).await;
-                    game::Game::new(&geng, &assets, level, &config, bots_data, connection, args)
+                    game::Game::new(&geng, &assets, level, &config, connection, args)
                 }
             }),
         );

@@ -59,6 +59,10 @@ pub struct SfxAssets {
 
 #[derive(geng::Assets)]
 pub struct UiAssets {
+    color: ugli::Texture,
+    title: ugli::Texture,
+    instructions: ugli::Texture,
+    play: ugli::Texture,
     left: ugli::Texture,
     right: ugli::Texture,
     settings: ugli::Texture,
@@ -69,6 +73,9 @@ pub struct UiAssets {
     spectators: ugli::Texture,
     players_left: ugli::Texture,
     time: ugli::Texture,
+    checkbox_on: ugli::Texture,
+    checkbox_off: ugli::Texture,
+    music: ugli::Texture,
 }
 
 #[derive(geng::Assets)]
@@ -81,7 +88,8 @@ pub struct Assets {
     arrow: ugli::Texture,
     #[asset(load_with = "load_player_assets(&geng, base_path.join(\"player\"))")]
     player: Vec<ugli::Texture>,
-    player_direction: ugli::Texture,
+    car: ugli::Texture,
+    car_color: ugli::Texture,
     ui: UiAssets,
     #[asset(
         range = r#"["Slow", "Medium", "Fast"]"#,
@@ -129,6 +137,7 @@ type Connection = geng::net::client::Connection<ServerMessage, ClientMessage>;
 
 struct RemotePlayer {
     skin: usize,
+    color: f32,
     pos: Interpolated<vec2<f32>>,
     rot: f32,
 }
@@ -136,12 +145,15 @@ struct RemotePlayer {
 impl RemotePlayer {
     fn new(player: Player) -> Self {
         Self {
+            color: player.color,
             skin: player.skin,
             pos: Interpolated::new(player.pos, player.vel),
             rot: player.rot,
         }
     }
     fn server_update(&mut self, upd: Player) {
+        self.skin = upd.skin;
+        self.color = upd.color;
         self.pos.server_update(upd.pos, upd.vel);
         self.rot = upd.rot;
     }
@@ -151,6 +163,7 @@ impl RemotePlayer {
 
     fn get(&self) -> Player {
         Player {
+            color: self.color,
             skin: self.skin,
             pos: self.pos.get(),
             vel: self.pos.get_derivative(),
@@ -225,6 +238,7 @@ impl Particles {
 
 pub struct Game {
     geng: Geng,
+    color: f32,
     assets: Rc<Assets>,
     config: Rc<Config>,
     connection: Connection,
@@ -247,7 +261,7 @@ pub struct Game {
     numbers: Numbers,
     name: String,
     spectating: bool,
-    music_muted: bool,
+    music_on: bool,
     music: Option<geng::SoundEffect>,
     drift_sfx: geng::SoundEffect,
     forward_sfx: geng::SoundEffect,
@@ -261,18 +275,28 @@ impl Game {
         assets: &Rc<Assets>,
         level: Level,
         config: &Rc<Config>,
-        bots_data: bots::Data,
         mut connection: Connection,
         args: Args,
     ) -> Self {
         connection.send(ClientMessage::Ping);
         let volume = preferences::load("volume").unwrap_or(0.5);
         geng.audio().set_volume(volume);
-        let music_muted: bool = preferences::load("music_muted").unwrap_or(false);
+        let music_on: bool = preferences::load("music_on").unwrap_or(true);
         let name = preferences::load("name").unwrap_or(String::new());
         connection.send(ClientMessage::Name(name.clone()));
+        let skin = preferences::load("skin").unwrap_or_else(|| {
+            let skin: usize = thread_rng().gen_range(0..assets.player.len());
+            preferences::save("skin", &skin);
+            skin
+        });
+        let color = preferences::load("color").unwrap_or_else(|| {
+            let color: f32 = thread_rng().gen();
+            preferences::save("color", &color);
+            color
+        });
         Self {
-            music_muted,
+            color,
+            music_on,
             music: None,
             geng: geng.clone(),
             assets: assets.clone(),
@@ -280,7 +304,8 @@ impl Game {
             connection,
             config: config.clone(),
             player: args.editor.then_some(Player {
-                skin: 0,
+                skin,
+                color,
                 pos: vec2::ZERO,
                 vel: vec2::ZERO,
                 rot: 0.0,
@@ -299,12 +324,8 @@ impl Game {
             text: None,
             score: 0,
             placement: 0,
-            skin: preferences::load("skin").unwrap_or_else(|| {
-                let skin: usize = thread_rng().gen_range(0..assets.player.len());
-                preferences::save("skin", &skin);
-                skin
-            }),
-            in_settings: false,
+            skin,
+            in_settings: true,
             volume,
             numbers: Numbers {
                 players_left: 0,
@@ -390,6 +411,7 @@ impl Game {
                         self.placement = 0;
                         self.player = Some(Player {
                             skin: self.skin,
+                            color: self.color,
                             pos,
                             vel: vec2::ZERO,
                             rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
@@ -425,30 +447,36 @@ impl Game {
         player: &Player,
         id: Option<Id>, // None = me
     ) {
+        let alpha = if id.is_some() { 0.5 } else { 1.0 };
         if let Some(texture) = self.assets.player.get(player.skin) {
-            if id.is_none() {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::TexturedQuad::unit(&self.assets.player_direction)
-                        .rotate(player.rot)
-                        .scale(self.config.player_direction_scale * self.config.player_radius)
-                        .translate(player.pos),
-                );
-            }
             self.geng.draw_2d(
                 framebuffer,
                 camera,
                 &draw_2d::TexturedQuad::unit_colored(
-                    texture,
-                    if id.is_none() {
-                        Rgba::WHITE
-                    } else {
-                        Rgba::new(1.0, 1.0, 1.0, 0.5)
-                    },
+                    &self.assets.car,
+                    Rgba::new(1.0, 1.0, 1.0, alpha),
                 )
-                .scale_uniform(self.config.player_radius)
-                .translate(player.pos + vec2(0.0, self.config.player_radius)),
+                .rotate(player.rot)
+                .scale(self.config.player_direction_scale * self.config.player_radius)
+                .translate(player.pos),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::unit_colored(
+                    &self.assets.car_color,
+                    batbox::color::Hsva::new(player.color, 1.0, 1.0, alpha).into(),
+                )
+                .rotate(player.rot)
+                .scale(self.config.player_direction_scale * self.config.player_radius)
+                .translate(player.pos),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::unit_colored(texture, Rgba::new(1.0, 1.0, 1.0, alpha))
+                    .scale_uniform(self.config.player_radius)
+                    .translate(player.pos + vec2(0.0, self.config.player_radius)),
             );
 
             self.assets.font.draw_with_outline(
@@ -879,7 +907,10 @@ impl geng::State for Game {
 
         self.particles.update(delta_time);
 
-        if self.music_muted {
+        if self.music_on != self.music.is_some() {
+            preferences::save("music_on", &self.music_on);
+        }
+        if !self.music_on {
             if let Some(mut music) = self.music.take() {
                 music.stop();
             }
@@ -1014,7 +1045,7 @@ impl geng::State for Game {
                 }
             }
             geng::Event::KeyDown { key: geng::Key::M } => {
-                self.music_muted = !self.music_muted; // TODO ui
+                self.music_on = !self.music_on; // TODO ui
             }
             geng::Event::KeyDown { key } if self.in_settings => {
                 let old_name = self.name.clone();
@@ -1046,6 +1077,28 @@ impl geng::State for Game {
             .uniform_padding(padding)
             .align(vec2(1.0, 0.0));
         if self.in_settings {
+            let checkbox = |value: &mut bool| {
+                let button = TextureButton::new(
+                    cx,
+                    if *value {
+                        &self.assets.ui.checkbox_on
+                    } else {
+                        &self.assets.ui.checkbox_off
+                    },
+                    1.0,
+                );
+                if button.was_clicked() {
+                    *value = !*value;
+                }
+                button
+            };
+
+            let play_button = TextureButton::new(cx, &self.assets.ui.play, 1.0);
+            if play_button.was_clicked() {
+                self.in_settings = false;
+            }
+            let play_button = play_button.fixed_size(vec2(2.0, 1.0));
+
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
                 self.skin = (self.skin + self.assets.player.len() - 1) % self.assets.player.len();
@@ -1054,18 +1107,68 @@ impl geng::State for Game {
             let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 1.0);
             if skin_button_next.was_clicked() {
                 self.skin = (self.skin + 1) % self.assets.player.len();
+                preferences::save("skin", &self.skin);
             }
             if let Some(player) = &mut self.player {
                 player.skin = self.skin;
+                player.color = self.color;
             }
-            let current_skin =
-                TextureWidget::new(&self.assets.player[self.skin], 2.0).uniform_padding(padding);
-            let skin_settings = (
-                skin_button_previous.center(),
-                current_skin.center(),
-                skin_button_next.center(),
+            let current_skin = stack![
+                CarWidget::new(
+                    &self.assets.car,
+                    &self.assets.car_color,
+                    batbox::color::Hsva::new(self.color, 1.0, 1.0, 1.0).into(),
+                    2.0
+                )
+                .center(),
+                TextureWidget::new(&self.assets.player[self.skin], 1.0).center()
+            ];
+            let customization = (
+                Text::new(
+                    if self.name.is_empty() {
+                        "type your name by pressing keys"
+                    } else {
+                        self.name.as_str()
+                    },
+                    &self.assets.font,
+                    1.0,
+                    if self.name.is_empty() {
+                        Rgba::GRAY
+                    } else {
+                        Rgba::WHITE
+                    },
+                )
+                .center(),
+                (
+                    skin_button_previous.center(),
+                    current_skin.center(),
+                    skin_button_next.center(),
+                    TextureWidget::new(&self.assets.ui.color, 1.0)
+                        .padding_left(padding)
+                        .padding_right(padding)
+                        .center(),
+                    CustomSlider::new(
+                        cx,
+                        &self.assets.ui.slider_line,
+                        &self.assets.ui.slider_knob,
+                        self.color as f64,
+                        0.0..=1.0,
+                        Box::new(|new_value| {
+                            self.color = new_value as f32;
+                            preferences::save("color", &self.color);
+                        }),
+                    )
+                    .fixed_size({
+                        let mut size = self.assets.ui.slider_line.size().map(|x| x as f64);
+                        size /= size.y;
+                        size
+                    })
+                    .center(),
+                )
+                    .row()
+                    .center(),
             )
-                .row();
+                .column();
             let volume_settings = (
                 TextureWidget::new(&self.assets.ui.volume, 1.0)
                     .uniform_padding(padding)
@@ -1088,19 +1191,27 @@ impl geng::State for Game {
                     size
                 })
                 .center(),
-            )
-                .row();
-            let settings = (
-                Text::new(self.name.as_str(), &self.assets.font, 1.0, Rgba::WHITE)
-                    .fixed_size(vec2(10.0, 1.0))
+                TextureWidget::new(&self.assets.ui.music, 1.0)
                     .uniform_padding(padding)
                     .center(),
-                skin_settings.center(),
+                checkbox(&mut self.music_on).center(),
+            )
+                .row();
+
+            let game_title =
+                TextureWidget::new(&self.assets.ui.title, 1.0).fixed_size(vec2(4.0, 2.0));
+            let instructions =
+                TextureWidget::new(&self.assets.ui.instructions, 1.0).fixed_size(vec2(4.0, 2.0));
+
+            let settings = (
+                game_title.center(),
+                (instructions.center(), play_button.center()).row().center(),
+                customization.center(),
                 volume_settings.center(),
             )
                 .column()
                 .center();
-            stack![settings_button, settings].boxed()
+            settings.boxed()
         } else {
             settings_button.boxed()
         }
