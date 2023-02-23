@@ -236,7 +236,15 @@ impl Particles {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum Winner {
+    None,
+    Me,
+    Other(Id),
+}
+
 pub struct Game {
+    winner: Option<Winner>,
     geng: Geng,
     color: f32,
     assets: Rc<Assets>,
@@ -252,8 +260,6 @@ pub struct Game {
     remote_players: HashMap<Id, RemotePlayer>,
     cat_move_time: f32,
     text: Option<(String, f32)>,
-    score: i32,
-    placement: usize,
     skin: usize,
     in_settings: bool,
     volume: f64,
@@ -322,8 +328,6 @@ impl Game {
             remote_players: default(),
             cat_move_time: 0.0,
             text: None,
-            score: 0,
-            placement: 0,
             skin,
             in_settings: true,
             volume,
@@ -334,6 +338,7 @@ impl Game {
                 qualified: 0,
             },
             round: Round {
+                num: 1,
                 track: Track { from: 0, to: 1 },
                 to_be_qualified: 0,
             },
@@ -353,6 +358,7 @@ impl Game {
             },
             next_drift_particle: 0.0,
             particles: Particles::new(geng, config, assets),
+            winner: None,
         }
     }
 
@@ -398,17 +404,8 @@ impl Game {
                         self.assets.sfx.eliminated.play();
                     }
                 }
-                ServerMessage::NewSessionAboutToBegin => {
-                    if !self.args.editor {
-                        self.player = None;
-                        self.spectating = true;
-                        self.assets.sfx.game_start.play();
-                    }
-                }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
                     if !self.args.editor {
-                        self.score = 0;
-                        self.placement = 0;
                         self.player = Some(Player {
                             skin: self.skin,
                             color: self.color,
@@ -416,7 +413,6 @@ impl Game {
                             vel: vec2::ZERO,
                             rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                         });
-                        self.text = Some(("New game! Go to coots now!".to_owned(), 0.0));
                         self.spectating = false;
                     }
                 }
@@ -424,10 +420,15 @@ impl Game {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
-                    self.round = round;
                     self.cat_move_time = self.config.cat_move_time as f32;
                     self.remote_players.clear();
                     self.assets.sfx.new_round.play();
+                    if round.num == 0 {
+                        self.text = Some(("Warmup round! Go to coots now!".to_string(), -2.0));
+                    } else {
+                        self.text = Some((format!("Round {}! Go to coots now!", round.num), 0.0));
+                    }
+                    self.round = round;
                 }
                 ServerMessage::YouHaveBeenQualified => {
                     if !self.args.editor {
@@ -436,6 +437,20 @@ impl Game {
                         self.assets.sfx.qualified.play();
                     }
                 }
+                ServerMessage::YouAreWinner => {
+                    self.winner = Some(Winner::Me);
+                    self.text = Some(("You have won!".to_owned(), -2.0));
+                }
+                ServerMessage::Winner(winner) => match winner {
+                    Some(id) => {
+                        self.winner = Some(Winner::Other(id));
+                        self.text = Some(("This is the winner!".to_owned(), -2.0));
+                    }
+                    None => {
+                        self.winner = Some(Winner::None);
+                        self.text = Some(("Nobody won!".to_owned(), -2.0));
+                    }
+                },
             }
         }
     }
@@ -498,8 +513,15 @@ impl Game {
 
     fn update_my_player(&mut self, delta_time: f32) {
         if self.spectating {
-            self.camera.center += (vec2::ZERO - self.camera.center)
-                * (self.config.camera_speed * delta_time).min(1.0);
+            if let Some(Winner::Other(id)) = self.winner {
+                if let Some(p) = self.remote_players.get(&id) {
+                    self.camera.center += (p.get().pos - self.camera.center)
+                        * (self.config.camera_speed * delta_time).min(1.0);
+                }
+            } else {
+                self.camera.center += (vec2::ZERO - self.camera.center)
+                    * (self.config.camera_speed * delta_time).min(1.0);
+            }
         }
         let player = match &mut self.player {
             Some(player) => player,
@@ -800,19 +822,6 @@ impl Game {
             outline_size,
             Rgba::BLACK,
         );
-        if self.placement != 0 {
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &format!("Your place: {}", self.placement),
-                vec2(0.0, ui_aabb.max.y - font_size * 2.0 - padding),
-                geng::TextAlign::CENTER,
-                1.0,
-                Rgba::WHITE,
-                0.05,
-                Rgba::BLACK,
-            );
-        }
 
         // Num of players
         self.assets.font.draw_with_outline(
@@ -925,6 +934,8 @@ impl geng::State for Game {
 
         let target_fov = if !self.spectating {
             self.config.camera_fov
+        } else if let Some(Winner::Other(_)) = self.winner {
+            self.config.camera_fov
         } else {
             self.config.map_scale * 2.0
         };
@@ -942,6 +953,7 @@ impl geng::State for Game {
             *time += delta_time;
             if *time > 1.0 {
                 self.text = None;
+                self.winner = None;
             }
         }
     }

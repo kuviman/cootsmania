@@ -28,6 +28,7 @@ pub struct Numbers {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Round {
+    pub num: usize,
     pub track: Track,
     pub to_be_qualified: usize,
 }
@@ -43,5 +44,6 @@ pub enum ServerMessage {
     NewRound(Round),
     YouHaveBeenQualified,
     Name(Id, String),
-    NewSessionAboutToBegin,
+    YouAreWinner,
+    Winner(Option<Id>),
 }

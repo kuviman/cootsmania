@@ -52,6 +52,7 @@ impl State {
             round: Round {
                 track: Track { from: 0, to: 1 },
                 to_be_qualified: 1,
+                num: 0,
             },
             qualified_players: default(),
             players: default(),
@@ -112,10 +113,11 @@ impl State {
         if self.players.iter().all(|id| self.bot_ids.contains_key(id)) {
             self.players.clear();
         }
-        self.new_round_from(start);
+        self.new_round_from(0, start);
     }
-    fn new_round_from(&mut self, from: usize) {
+    fn new_round_from(&mut self, num: usize, from: usize) {
         self.round = Round {
+            num,
             track: self.level.random_track_from(from),
             to_be_qualified: self.players.len()
                 - ((self.players.len() as f32 * self.config.elimination_ratio) as usize)
@@ -205,12 +207,36 @@ impl State {
         self.players
             .retain(|id| self.qualified_players.contains(id));
         if self.players.len() <= 1 {
-            for client in self.clients.values_mut() {
-                client.sender.send(ServerMessage::NewSessionAboutToBegin);
+            let winner = self.players.iter().copied().next();
+            for (&client_id, client) in &mut self.clients {
+                if Some(client_id) == winner {
+                    client.sender.send(ServerMessage::YouHaveBeenRespawned(
+                        self.level.cat_locations[self.round.track.to],
+                    ));
+                    client.sender.send(ServerMessage::YouAreWinner);
+                } else {
+                    client.sender.send(ServerMessage::Winner(winner));
+                }
+            }
+            if let Some(winner) = winner {
+                if self.bot_ids.contains_key(&winner) {
+                    for client in self.clients.values_mut() {
+                        client.sender.send(ServerMessage::UpdatePlayer(
+                            winner,
+                            Some(Player {
+                                color: 0.0,
+                                skin: 0,
+                                pos: self.level.cat_locations[self.round.track.to],
+                                vel: vec2::ZERO,
+                                rot: 0.0,
+                            }),
+                        ));
+                    }
+                }
             }
             self.new_session_timer = Some(Timer::new());
         } else {
-            self.new_round_from(self.round.track.to);
+            self.new_round_from(self.round.num + 1, self.round.track.to);
         }
     }
 
