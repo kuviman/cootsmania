@@ -1101,7 +1101,7 @@ impl geng::State for Game {
                     );
                 }
             }
-            geng::Event::KeyDown { key: geng::Key::M } => {
+            geng::Event::KeyDown { key: geng::Key::M } if !self.in_settings => {
                 self.music_on = !self.music_on; // TODO ui
             }
             geng::Event::KeyDown { key } if self.in_settings => {
