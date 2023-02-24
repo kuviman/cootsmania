@@ -79,7 +79,13 @@ pub struct UiAssets {
 }
 
 #[derive(geng::Assets)]
+pub struct Shaders {
+    foo: ugli::Program,
+}
+
+#[derive(geng::Assets)]
 pub struct Assets {
+    pub shaders: Shaders,
     pub sfx: SfxAssets,
     map_floor: ugli::Texture,
     map_furniture_front: ugli::Texture,
@@ -460,7 +466,7 @@ impl Game {
         }
     }
 
-    fn draw_player(
+    fn draw_player_car(
         &self,
         framebuffer: &mut ugli::Framebuffer,
         camera: &geng::Camera2d,
@@ -491,13 +497,34 @@ impl Game {
                 .scale(self.config.player_direction_scale * self.config.player_radius)
                 .translate(player.pos),
             );
+        }
+    }
+
+    fn draw_player_body(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &geng::Camera2d,
+        player: &Player,
+        id: Option<Id>, // None = me
+    ) {
+        let alpha = if id.is_some() { 0.5 } else { 1.0 };
+        if let Some(texture) = self.assets.player.get(player.skin) {
             self.geng.draw_2d(
                 framebuffer,
                 camera,
                 &draw_2d::TexturedQuad::unit_colored(texture, Rgba::new(1.0, 1.0, 1.0, alpha))
-                    .scale_uniform(self.config.player_radius)
+                    .scale_uniform(self.config.player_radius / std::f32::consts::SQRT_2)
                     .translate(player.pos + vec2(0.0, self.config.player_radius)),
             );
+            // self.geng.draw_2d(
+            //     framebuffer,
+            //     camera,
+            //     &draw_2d::Ellipse::circle(
+            //         player.pos,
+            //         self.config.player_radius,
+            //         Rgba::new(1.0, 0.0, 0.0, 0.5),
+            //     ),
+            // );
 
             if self.show_player_names {
                 self.assets.font.draw_with_outline(
@@ -722,17 +749,34 @@ impl Game {
         }
 
         for (&id, player) in &self.remote_players {
-            self.draw_player(framebuffer, camera, &player.get(), Some(id));
+            self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
         }
         self.particles.draw(framebuffer, camera);
         if let Some(player) = &self.player {
-            self.draw_player(framebuffer, camera, player, None);
+            self.draw_player_car(framebuffer, camera, player, None);
         }
 
         self.geng.draw_2d(
             framebuffer,
             camera,
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_front),
+        );
+
+        for (&id, player) in &self.remote_players {
+            self.draw_player_body(framebuffer, camera, &player.get(), Some(id));
+        }
+        self.particles.draw(framebuffer, camera);
+        if let Some(player) = &self.player {
+            self.draw_player_body(framebuffer, camera, player, None);
+        }
+
+        self.draw_part(
+            framebuffer,
+            camera,
+            texture_pos,
+            &self.assets.map_furniture_front,
+            self.config.player_radius,
+            true,
         );
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
@@ -1007,6 +1051,119 @@ impl Game {
                 );
             }
         }
+    }
+
+    fn draw_part(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &geng::Camera2d,
+        texture_pos: Aabb2<f32>,
+        texture: &ugli::Texture2d<Rgba<f32>>,
+        offset: f32,
+        side: bool,
+    ) {
+        // let offset = offset * 1.2;
+        // self.geng.draw_2d(
+        //     framebuffer,
+        //     camera,
+        //     &draw_2d::TexturedQuad::new(texture_pos, texture),
+        // );
+
+        #[derive(ugli::Vertex)]
+        struct FooVertex {
+            a_pos: vec2<f32>,
+            a_vt: vec2<f32>,
+        }
+        ugli::clear(framebuffer, None, None, Some(0));
+        ugli::draw(
+            framebuffer,
+            &self.assets.shaders.foo,
+            ugli::DrawMode::Triangles,
+            &ugli::VertexBuffer::new_dynamic(self.geng.ugli(), {
+                let n = vec2(0.0, offset);
+                let mut vs = Vec::<FooVertex>::new();
+                let v = |p| FooVertex {
+                    a_pos: p,
+                    a_vt: vec2::ZERO,
+                };
+                for &[p1, p2] in &self.level.segments {
+                    vs.push(v(p1));
+                    vs.push(v(p2));
+                    vs.push(v(p2 + n));
+                    vs.push(v(p1));
+                    vs.push(v(p2 + n));
+                    vs.push(v(p1 + n));
+                }
+                vs
+            }),
+            (
+                ugli::uniforms! {
+                    u_texture: texture,
+                },
+                geng::camera2d_uniforms(camera, self.framebuffer_size),
+            ),
+            ugli::DrawParameters {
+                stencil_mode: Some(ugli::StencilMode::always(ugli::FaceStencilMode {
+                    test: ugli::StencilTest {
+                        condition: ugli::Condition::Always,
+                        reference: 1,
+                        mask: 0,
+                    },
+                    op: ugli::StencilOp::always(ugli::StencilOpFunc::Replace),
+                })),
+                write_color: false,
+                write_depth: false,
+                ..default()
+            },
+        );
+        ugli::draw(
+            framebuffer,
+            &self.assets.shaders.foo,
+            ugli::DrawMode::TriangleFan,
+            &ugli::VertexBuffer::new_dynamic(
+                self.geng.ugli(),
+                vec![
+                    FooVertex {
+                        a_pos: texture_pos.bottom_left(),
+                        a_vt: vec2(0.0, 0.0),
+                    },
+                    FooVertex {
+                        a_pos: texture_pos.bottom_right(),
+                        a_vt: vec2(1.0, 0.0),
+                    },
+                    FooVertex {
+                        a_pos: texture_pos.top_right(),
+                        a_vt: vec2(1.0, 1.0),
+                    },
+                    FooVertex {
+                        a_pos: texture_pos.top_left(),
+                        a_vt: vec2(0.0, 1.0),
+                    },
+                ],
+            ),
+            (
+                ugli::uniforms! {
+                    u_texture: texture,
+                },
+                geng::camera2d_uniforms(camera, self.framebuffer_size),
+            ),
+            ugli::DrawParameters {
+                stencil_mode: Some(ugli::StencilMode::always(ugli::FaceStencilMode {
+                    test: ugli::StencilTest {
+                        condition: if side {
+                            ugli::Condition::NotEqual
+                        } else {
+                            ugli::Condition::Equal
+                        },
+                        reference: 1,
+                        mask: 0xff,
+                    },
+                    op: ugli::StencilOp::always(ugli::StencilOpFunc::Keep),
+                })),
+                blend_mode: Some(ugli::BlendMode::straight_alpha()),
+                ..default()
+            },
+        );
     }
 }
 
