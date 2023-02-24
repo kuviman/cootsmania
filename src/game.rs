@@ -274,6 +274,7 @@ pub struct Game {
     next_drift_particle: f32,
     particles: Particles,
     t: f32,
+    show_player_names: bool,
 }
 
 impl Game {
@@ -361,6 +362,7 @@ impl Game {
             particles: Particles::new(geng, config, assets),
             winner: None,
             t: 0.0,
+            show_player_names: preferences::load("show_player_names").unwrap_or(true),
         }
     }
 
@@ -497,20 +499,22 @@ impl Game {
                     .translate(player.pos + vec2(0.0, self.config.player_radius)),
             );
 
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                camera,
-                match id {
-                    None => &self.name,
-                    Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
-                },
-                player.pos + vec2(0.0, self.config.player_radius * 2.0),
-                geng::TextAlign::CENTER,
-                self.config.nameplate_size,
-                Rgba::WHITE,
-                self.config.nameplate_outline_size,
-                Rgba::BLACK,
-            );
+            if self.show_player_names {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    camera,
+                    match id {
+                        None => &self.name,
+                        Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
+                    },
+                    player.pos + vec2(0.0, self.config.player_radius * 2.0),
+                    geng::TextAlign::CENTER,
+                    self.config.nameplate_size,
+                    Rgba::WHITE,
+                    self.config.nameplate_outline_size,
+                    Rgba::BLACK,
+                );
+            }
         }
     }
 
@@ -1024,7 +1028,7 @@ impl geng::State for Game {
                 &draw_2d::TexturedQuad::colored(
                     Aabb2::point(vec2::ZERO).extend_positive(self.framebuffer_size),
                     texture,
-                    Rgba::GRAY,
+                    Rgba::new(0.3, 0.3, 0.3, 1.0),
                 ),
             );
         } else {
@@ -1134,6 +1138,23 @@ impl geng::State for Game {
             .uniform_padding(padding)
             .align(vec2(1.0, 0.0));
         if self.in_settings {
+            let gray = Rgba::new(0.8, 0.8, 0.8, 1.0);
+            let checkbox_with_callback = |value: &mut bool, f: &dyn Fn(bool)| {
+                let button = TextureButton::new(
+                    cx,
+                    if *value {
+                        &self.assets.ui.checkbox_on
+                    } else {
+                        &self.assets.ui.checkbox_off
+                    },
+                    1.0,
+                );
+                if button.was_clicked() {
+                    *value = !*value;
+                    f(*value);
+                }
+                button
+            };
             let checkbox = |value: &mut bool| {
                 let button = TextureButton::new(
                     cx,
@@ -1190,18 +1211,28 @@ impl geng::State for Game {
                     &self.assets.font,
                     1.0,
                     if self.name.is_empty() {
-                        Rgba::GRAY
+                        gray
                     } else {
                         Rgba::WHITE
                     },
                 )
                 .center(),
                 (
+                    Text::new("show player names", &self.assets.font, 1.0, gray).center(),
+                    checkbox_with_callback(&mut self.show_player_names, &|value| {
+                        preferences::save("show_player_names", &value);
+                    })
+                    .padding_left(padding)
+                    .center(),
+                )
+                    .row()
+                    .center(),
+                (
                     skin_button_previous.center(),
                     current_skin.center(),
                     skin_button_next.center(),
                     TextureWidget::new(&self.assets.ui.color, 1.0)
-                        .padding_left(padding)
+                        .padding_left(padding * 3.0)
                         .padding_right(padding)
                         .center(),
                     CustomSlider::new(
