@@ -282,6 +282,7 @@ pub struct Game {
     particles: Particles,
     t: f32,
     show_player_names: bool,
+    next_player_update: f32,
 }
 
 impl Game {
@@ -369,6 +370,7 @@ impl Game {
             particles: Particles::new(geng, config, assets),
             winner: None,
             t: 0.0,
+            next_player_update: 0.0,
             show_player_names: preferences::load("show_player_names").unwrap_or(true),
         }
     }
@@ -574,133 +576,139 @@ impl Game {
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
 
-        let input = PlayerInput {
-            rotate: {
-                let mut value: f32 = 0.0;
-                if self.geng.window().is_key_pressed(geng::Key::Left)
-                    || self.geng.window().is_key_pressed(geng::Key::A)
-                {
-                    value += 1.0;
-                }
-                if self.geng.window().is_key_pressed(geng::Key::Right)
-                    || self.geng.window().is_key_pressed(geng::Key::D)
-                {
-                    value -= 1.0;
-                }
-                value.clamp(-1.0, 1.0)
-            },
-            accelerate: {
-                let mut value: f32 = 0.0;
-                if self.geng.window().is_key_pressed(geng::Key::Down)
-                    || self.geng.window().is_key_pressed(geng::Key::S)
-                {
-                    value -= 1.0;
-                }
-                if self.geng.window().is_key_pressed(geng::Key::Up)
-                    || self.geng.window().is_key_pressed(geng::Key::W)
-                {
-                    value += 1.0;
-                }
-                value.clamp(-1.0, 1.0)
-            },
-        };
+        self.next_player_update -= delta_time;
+        while self.next_player_update < 0.0 {
+            let delta_time = 1.0 / 200.0;
+            self.next_player_update += delta_time;
 
-        player.rot += input.rotate * self.config.rotation_speed * delta_time;
-        let dir = vec2(1.0, 0.0).rotate(player.rot);
-
-        let mut forward_vel = vec2::dot(dir, player.vel);
-        let (target_forward_vel, forward_acceleration) = if input.accelerate > 0.0 {
-            let target_forward_vel = input.accelerate * self.config.max_speed;
-            let forward_acceleration = if target_forward_vel > forward_vel {
-                if forward_vel < 0.0 {
-                    self.config.deceleration
-                } else {
-                    self.config.acceleration
-                }
-            } else {
-                -self.config.deceleration
+            let input = PlayerInput {
+                rotate: {
+                    let mut value: f32 = 0.0;
+                    if self.geng.window().is_key_pressed(geng::Key::Left)
+                        || self.geng.window().is_key_pressed(geng::Key::A)
+                    {
+                        value += 1.0;
+                    }
+                    if self.geng.window().is_key_pressed(geng::Key::Right)
+                        || self.geng.window().is_key_pressed(geng::Key::D)
+                    {
+                        value -= 1.0;
+                    }
+                    value.clamp(-1.0, 1.0)
+                },
+                accelerate: {
+                    let mut value: f32 = 0.0;
+                    if self.geng.window().is_key_pressed(geng::Key::Down)
+                        || self.geng.window().is_key_pressed(geng::Key::S)
+                    {
+                        value -= 1.0;
+                    }
+                    if self.geng.window().is_key_pressed(geng::Key::Up)
+                        || self.geng.window().is_key_pressed(geng::Key::W)
+                    {
+                        value += 1.0;
+                    }
+                    value.clamp(-1.0, 1.0)
+                },
             };
-            (target_forward_vel, forward_acceleration)
-        } else {
-            let target_forward_vel = input.accelerate * self.config.max_backward_speed;
-            let forward_acceleration = if target_forward_vel < forward_vel {
-                if forward_vel > 0.0 {
+
+            player.rot += input.rotate * self.config.rotation_speed * delta_time;
+            let dir = vec2(1.0, 0.0).rotate(player.rot);
+
+            let mut forward_vel = vec2::dot(dir, player.vel);
+            let (target_forward_vel, forward_acceleration) = if input.accelerate > 0.0 {
+                let target_forward_vel = input.accelerate * self.config.max_speed;
+                let forward_acceleration = if target_forward_vel > forward_vel {
+                    if forward_vel < 0.0 {
+                        self.config.deceleration
+                    } else {
+                        self.config.acceleration
+                    }
+                } else {
                     -self.config.deceleration
-                } else {
-                    -self.config.backward_acceleration
-                }
+                };
+                (target_forward_vel, forward_acceleration)
             } else {
-                self.config.deceleration
+                let target_forward_vel = input.accelerate * self.config.max_backward_speed;
+                let forward_acceleration = if target_forward_vel < forward_vel {
+                    if forward_vel > 0.0 {
+                        -self.config.deceleration
+                    } else {
+                        -self.config.backward_acceleration
+                    }
+                } else {
+                    self.config.deceleration
+                };
+                (target_forward_vel, forward_acceleration)
             };
-            (target_forward_vel, forward_acceleration)
-        };
-        forward_vel +=
-            (target_forward_vel - forward_vel).clamp_abs(forward_acceleration.abs() * delta_time);
+            forward_vel += (target_forward_vel - forward_vel)
+                .clamp_abs(forward_acceleration.abs() * delta_time);
 
-        let mut drift_vel = vec2::skew(dir, player.vel);
-        drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
+            let mut drift_vel = vec2::skew(dir, player.vel);
+            drift_vel -= drift_vel.clamp_abs(self.config.drift_deceleration * delta_time);
 
-        let old_vel = player.vel;
-        player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
+            let old_vel = player.vel;
+            player.vel = dir * forward_vel + dir.rotate_90() * drift_vel;
 
-        let drift_value = drift_vel.abs();
-        self.drift_sfx
-            .set_volume(self.config.drift_sfx.get(drift_value));
-        self.drift_sfx.set_speed(
-            (self.config.drift_sfx_pitch.get(drift_value) * 2.0 - 1.0)
-                * self.config.drift_speed_change
-                + 1.0,
-        );
-        self.next_drift_particle -= self.config.drift_sfx.get(drift_value) as f32 * delta_time;
-        while self.next_drift_particle < 0.0 {
-            self.next_drift_particle += 1.0 / self.config.drift_particles;
-            self.particles.push(player.pos, player.vel);
-        }
-        let forward_value = forward_vel.abs();
-        self.forward_sfx
-            .set_volume(self.config.forward_sfx.get(forward_value));
-        self.forward_sfx.set_speed(
-            (self.config.forward_sfx_pitch.get(forward_value) * 2.0 - 1.0)
-                * self.config.forward_speed_change
-                + 1.0,
-        );
-
-        player.pos += player.vel * delta_time;
-        #[derive(PartialEq)]
-        struct Collision {
-            n: vec2<f32>,
-            penetration: f32,
-        }
-        impl PartialOrd for Collision {
-            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                Some(
-                    self.penetration
-                        .partial_cmp(&other.penetration)
-                        .unwrap()
-                        .reverse(),
-                )
+            let drift_value = drift_vel.abs();
+            self.drift_sfx
+                .set_volume(self.config.drift_sfx.get(drift_value));
+            self.drift_sfx.set_speed(
+                (self.config.drift_sfx_pitch.get(drift_value) * 2.0 - 1.0)
+                    * self.config.drift_speed_change
+                    + 1.0,
+            );
+            self.next_drift_particle -= self.config.drift_sfx.get(drift_value) as f32 * delta_time;
+            while self.next_drift_particle < 0.0 {
+                self.next_drift_particle += 1.0 / self.config.drift_particles;
+                self.particles.push(player.pos, player.vel);
             }
-        }
-        let mut collision = None;
-        for &[p1, p2] in &self.level.segments {
-            let v = -vector_from(player.pos, p1, p2);
-            let penetration = self.config.player_radius - v.len();
-            let n = v.normalize_or_zero();
-            if penetration > 0.0 {
-                collision = partial_max(collision, Some(Collision { n, penetration }));
+            let forward_value = forward_vel.abs();
+            self.forward_sfx
+                .set_volume(self.config.forward_sfx.get(forward_value));
+            self.forward_sfx.set_speed(
+                (self.config.forward_sfx_pitch.get(forward_value) * 2.0 - 1.0)
+                    * self.config.forward_speed_change
+                    + 1.0,
+            );
+
+            player.pos += player.vel * delta_time;
+            #[derive(PartialEq)]
+            struct Collision {
+                n: vec2<f32>,
+                penetration: f32,
             }
-        }
-        if let Some(Collision { n, penetration }) = collision {
-            player.pos += n * penetration;
-            let v = vec2::dot(n, player.vel);
-            let sfx_volume = self.config.bounce_sfx.get(v.abs());
-            if sfx_volume > 0.0 {
-                let mut effect = self.assets.sfx.bounce.effect();
-                effect.set_speed(thread_rng().gen_range(0.8..1.2));
-                effect.set_volume(sfx_volume);
-                effect.play();
+            impl PartialOrd for Collision {
+                fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                    Some(
+                        self.penetration
+                            .partial_cmp(&other.penetration)
+                            .unwrap()
+                            .reverse(),
+                    )
+                }
             }
-            player.vel -= n * v * (1.0 + self.config.collision_bounciness);
+            let mut collision = None;
+            for &[p1, p2] in &self.level.segments {
+                let v = -vector_from(player.pos, p1, p2);
+                let penetration = self.config.player_radius - v.len();
+                let n = v.normalize_or_zero();
+                if penetration > 0.0 {
+                    collision = partial_max(collision, Some(Collision { n, penetration }));
+                }
+            }
+            if let Some(Collision { n, penetration }) = collision {
+                player.pos += n * penetration;
+                let v = vec2::dot(n, player.vel);
+                let sfx_volume = self.config.bounce_sfx.get(v.abs());
+                if sfx_volume > 0.0 {
+                    let mut effect = self.assets.sfx.bounce.effect();
+                    effect.set_speed(thread_rng().gen_range(0.8..1.2));
+                    effect.set_volume(sfx_volume);
+                    effect.play();
+                }
+                player.vel -= n * v * (1.0 + self.config.collision_bounciness);
+            }
         }
     }
 
