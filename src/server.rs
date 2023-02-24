@@ -36,7 +36,7 @@ impl State {
                 .unwrap();
         let bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.data")));
         let mut next_id = 0;
-        let bot_ids = (0..bots.max_bots() + 100)
+        let bot_ids = (0..bots.max_bots())
             .map(|index| {
                 let data = (next_id, Bot { index });
                 next_id += 1;
@@ -113,7 +113,9 @@ impl State {
     fn new_session(&mut self) {
         let start = thread_rng().gen_range(0..self.level.cat_locations.len());
         self.players =
-            itertools::chain![self.clients.keys().copied(), self.bot_ids.keys().copied()].collect();
+            itertools::chain![self.clients.keys().copied(), self.bot_ids.keys().copied()]
+                .take(self.clients.len().max(self.config.min_players))
+                .collect();
         if self.players.iter().all(|id| self.bot_ids.contains_key(id)) {
             self.players.clear();
         }
@@ -123,10 +125,14 @@ impl State {
         self.round = Round {
             num,
             track: self.level.random_track_from(from),
-            to_be_qualified: self.players.len()
-                - ((self.players.len() as f32 * self.config.elimination_ratio) as usize)
-                    .max(1)
-                    .min(self.players.len()),
+            to_be_qualified: if num == 0 {
+                self.players.len()
+            } else {
+                self.players.len()
+                    - ((self.players.len() as f32 * self.config.elimination_ratio) as usize)
+                        .max(1)
+                        .min(self.players.len())
+            },
         };
         for client in self.clients.values_mut() {
             client
