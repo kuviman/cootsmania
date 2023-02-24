@@ -358,11 +358,18 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
                 state.update_player(self.id, player);
             }
             ClientMessage::Name(name) => {
+                let name = name.chars().filter(|c| c.is_ascii_alphabetic()).take(15);
+                let name: String = rustrict::CensorIter::censor(name).collect();
+
                 state.clients.get_mut(&self.id).unwrap().name = name.clone();
-                for client in state.clients.values_mut() {
-                    client
-                        .sender
-                        .send(ServerMessage::Name(self.id, name.clone()));
+                for (&client_id, client) in &mut state.clients {
+                    if self.id == client_id {
+                        client.sender.send(ServerMessage::YourName(name.clone()));
+                    } else {
+                        client
+                            .sender
+                            .send(ServerMessage::Name(self.id, name.clone()));
+                    }
                 }
             }
         }

@@ -381,6 +381,9 @@ impl Game {
                 _ => info!("{message:?}"),
             }
             match message {
+                ServerMessage::YourName(name) => {
+                    self.name = name;
+                }
                 ServerMessage::Name(id, name) => {
                     self.names.insert(id, name);
                 }

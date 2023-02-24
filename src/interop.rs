@@ -46,4 +46,5 @@ pub enum ServerMessage {
     Name(Id, String),
     YouAreWinner,
     Winner(Option<Id>),
+    YourName(String),
 }
