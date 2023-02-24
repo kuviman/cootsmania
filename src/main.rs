@@ -146,6 +146,11 @@ fn main() {
             target_ui_resolution: Some(vec2(20.0, 10.0)),
             ..geng::ContextOptions::from_args(&args.geng)
         });
+        geng.set_ui_theme({
+            let mut theme = geng::ui::Theme::light(&geng);
+            theme.text_size = 1.0;
+            theme
+        });
         geng::run(
             &geng,
             geng::LoadingScreen::new(&geng, geng::EmptyLoadingScreen, {

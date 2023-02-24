@@ -573,9 +573,6 @@ impl Game {
             }
         };
 
-        self.camera.center +=
-            (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
-
         self.next_player_update -= delta_time;
         while self.next_player_update < 0.0 {
             let delta_time = 1.0 / 200.0;
@@ -710,6 +707,9 @@ impl Game {
                 player.vel -= n * v * (1.0 + self.config.collision_bounciness);
             }
         }
+
+        self.camera.center +=
+            (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
     }
 
     fn draw_game(&mut self, framebuffer: &mut ugli::Framebuffer) {
