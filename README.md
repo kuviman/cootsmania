@@ -1,3 +1,3 @@
-# Ludwig Jam 2023
+# Cootsmania
 
-[![Flow](https://github.com/kuviman/ludwig-jam-2023/actions/workflows/flow.yml/badge.svg)](https://github.com/kuviman/ludwig-jam-2023/actions/workflows/flow.yml)
+[![Flow](https://github.com/kuviman/cootsmania/actions/workflows/flow.yml/badge.svg)](https://github.com/kuviman/cootsmania/actions/workflows/flow.yml)

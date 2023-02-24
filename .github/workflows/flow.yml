@@ -43,20 +43,20 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           source: linux
-          target: lj23
+          target: cootsmania
       - name: Deploy server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          script: systemctl --user restart lj23
+          script: systemctl --user restart cootsmania
       - name: Upload itch.io (Web)
         uses: josephbmanley/butler-publish-itchio-action@master
         env:
           BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
           CHANNEL: html5
-          ITCH_GAME: coots
+          ITCH_GAME: cootsmania
           ITCH_USER: kuviman
           PACKAGE: web
       - name: Deploy GitHub Pages

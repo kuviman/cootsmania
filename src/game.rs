@@ -873,12 +873,27 @@ impl Game {
         );
 
         // Num of players
+        let numbers_width = 2.0;
+        self.geng.draw_2d(
+            framebuffer,
+            ui_camera,
+            &draw_2d::TexturedQuad::unit(&self.assets.ui.players_left)
+                .translate(vec2(1.0, 1.0))
+                .scale_uniform(font_size / 2.0)
+                .translate(
+                    ui_aabb.top_right()
+                        - vec2(
+                            padding - numbers_width - padding - font_size,
+                            font_size + padding,
+                        ),
+                ),
+        );
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            &format!("Players Left: {players_left}"),
-            ui_aabb.top_right() - vec2(padding, font_size + padding),
-            geng::TextAlign::RIGHT,
+            &players_left.to_string(),
+            ui_aabb.top_right() - vec2(padding + numbers_width, font_size + padding),
+            geng::TextAlign::LEFT,
             font_size,
             Rgba::WHITE,
             outline_size,
@@ -887,9 +902,9 @@ impl Game {
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            &format!("Spectators: {spectators}"),
-            ui_aabb.top_right() - vec2(padding, font_size * 2.0 + padding),
-            geng::TextAlign::RIGHT,
+            &spectators.to_string(),
+            ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 2.0 + padding),
+            geng::TextAlign::LEFT,
             font_size,
             Rgba::WHITE,
             outline_size,
@@ -898,9 +913,9 @@ impl Game {
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            &format!("Bots: {bots}"),
-            ui_aabb.top_right() - vec2(padding, font_size * 3.0 + padding),
-            geng::TextAlign::RIGHT,
+            &bots.to_string(),
+            ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 3.0 + padding),
+            geng::TextAlign::LEFT,
             font_size,
             Rgba::WHITE,
             outline_size,
