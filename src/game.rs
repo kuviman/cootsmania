@@ -456,16 +456,16 @@ impl Game {
                 }
                 ServerMessage::YouAreWinner => {
                     self.winner = Some(Winner::Me);
-                    self.text = Some(("You have won!".to_owned(), -2.0));
+                    self.text = Some(("You are the champion!".to_owned(), -2.0));
                 }
                 ServerMessage::Winner(winner) => match winner {
                     Some(id) => {
                         self.winner = Some(Winner::Other(id));
-                        self.text = Some(("This is the winner!".to_owned(), -2.0));
+                        self.text = Some(("Champion!".to_owned(), -2.0));
                     }
                     None => {
                         self.winner = Some(Winner::None);
-                        self.text = Some(("Nobody won!".to_owned(), -2.0));
+                        self.text = Some(("Nobody won :(".to_owned(), -2.0));
                     }
                 },
             }
@@ -875,10 +875,17 @@ impl Game {
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            if self.player.is_some() {
-                "go to coots!"
+            &if self.player.is_some() {
+                "go to coots!".to_owned()
             } else {
-                "wait for current game to finish"
+                format!(
+                    "wait for current game to finish\n{} round(s) left",
+                    if self.numbers.players_left == 0 {
+                        0
+                    } else {
+                        (self.numbers.players_left as f32).log2().ceil() as i32
+                    } + if self.round.num == 0 { 1 } else { 0 }
+                )
             },
             vec2(0.0, -4.0),
             geng::TextAlign::CENTER,
