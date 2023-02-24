@@ -484,8 +484,8 @@ impl Game {
                     Rgba::new(1.0, 1.0, 1.0, alpha),
                 )
                 .rotate(player.rot)
-                .scale(self.config.player_direction_scale * self.config.player_radius)
-                .translate(player.pos),
+                .scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                .translate(player.pos + vec2(0.0, 0.4)),
             );
             self.geng.draw_2d(
                 framebuffer,
@@ -495,8 +495,8 @@ impl Game {
                     batbox::color::Hsva::new(player.color, 1.0, 1.0, alpha).into(),
                 )
                 .rotate(player.rot)
-                .scale(self.config.player_direction_scale * self.config.player_radius)
-                .translate(player.pos),
+                .scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                .translate(player.pos + vec2(0.0, 0.4)),
             );
         }
     }
