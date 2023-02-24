@@ -62,12 +62,12 @@
     "forward_speed_change": 0.1,
     "min_players": 8,
     "cat_location_text": [
-        "bathroom",
-        "stream",
-        "bed",
-        "chess",
-        "entrance",
-        "living",
-        "kitchen"
+        "Coots is admiring the bidet!",
+        "Coots is about to start streaming!",
+        "Coots is hunting for bugs in the bedroom!",
+        "Coots sure likes playing chess!",
+        "Coots smells a delivery!",
+        "Coots is watching stream on the TV!",
+        "Oh no! Coots is making a mess in the kitchen!"
     ]
 }
