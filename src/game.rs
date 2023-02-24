@@ -763,7 +763,13 @@ impl Game {
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
             if !camera_aabb.contains(pos) {
-                let aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
+                let mut aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
+                if aabb.max.x < aabb.min.x {
+                    aabb.max.x = aabb.min.x;
+                }
+                if aabb.max.y < aabb.min.y {
+                    aabb.max.y = aabb.min.y;
+                }
                 let arrow_pos = vec2(
                     pos.x.clamp(aabb.min.x, aabb.max.x),
                     pos.y.clamp(aabb.min.y, aabb.max.y),
@@ -793,7 +799,7 @@ impl Game {
             fov: 10.0,
         };
         let ui_aabb = ui_camera.view_area(self.framebuffer_size).bounding_box();
-        self.assets.font.draw(
+        self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
             if self.player.is_some() {
@@ -804,7 +810,9 @@ impl Game {
             vec2(0.0, -4.0),
             geng::TextAlign::CENTER,
             1.0,
-            Rgba::GRAY,
+            Rgba::WHITE,
+            0.05,
+            Rgba::BLACK,
         );
         if let Some((ref text, t)) = self.text {
             self.assets.font.draw_with_outline(
@@ -873,7 +881,7 @@ impl Game {
         );
 
         // Num of players
-        let numbers_width = 2.0;
+        let numbers_width = 1.0;
         self.geng.draw_2d(
             framebuffer,
             ui_camera,
@@ -883,8 +891,36 @@ impl Game {
                 .translate(
                     ui_aabb.top_right()
                         - vec2(
-                            padding - numbers_width - padding - font_size,
+                            padding + numbers_width + padding + font_size,
                             font_size + padding,
+                        ),
+                ),
+        );
+        self.geng.draw_2d(
+            framebuffer,
+            ui_camera,
+            &draw_2d::TexturedQuad::unit(&self.assets.ui.spectators)
+                .translate(vec2(1.0, 1.0))
+                .scale_uniform(font_size / 2.0)
+                .translate(
+                    ui_aabb.top_right()
+                        - vec2(
+                            padding + numbers_width + padding + font_size,
+                            font_size * 2.0 + padding,
+                        ),
+                ),
+        );
+        self.geng.draw_2d(
+            framebuffer,
+            ui_camera,
+            &draw_2d::TexturedQuad::unit(&self.assets.ui.bots)
+                .translate(vec2(1.0, 1.0))
+                .scale_uniform(font_size / 2.0)
+                .translate(
+                    ui_aabb.top_right()
+                        - vec2(
+                            padding + numbers_width + padding + font_size,
+                            font_size * 3.0 + padding,
                         ),
                 ),
         );
