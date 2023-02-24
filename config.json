@@ -60,5 +60,14 @@
         "volume": 2.5
     },
     "forward_speed_change": 0.1,
-    "min_players": 8
+    "min_players": 8,
+    "cat_location_text": [
+        "bathroom",
+        "stream",
+        "bed",
+        "chess",
+        "entrance",
+        "living",
+        "kitchen"
+    ]
 }

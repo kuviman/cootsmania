@@ -440,12 +440,16 @@ impl Game {
                     self.cat_move_time = self.config.cat_move_time as f32;
                     self.remote_players.clear();
                     self.assets.sfx.new_round.play();
-                    if round.num == 0 {
-                        self.text = Some(("Warmup round! Go to coots now!".to_string(), -2.0));
-                    } else {
-                        self.text = Some((format!("Round {}! Go to coots now!", round.num), 0.0));
-                    }
                     self.round = round;
+                    self.text = Some((
+                        if self.round.num == 0 {
+                            "Warmup round!".to_string()
+                        } else {
+                            format!("Round {}!", self.round.num)
+                        } + "\n"
+                            + &self.config.cat_location_text[self.round.track.to],
+                        -2.0,
+                    ));
                 }
                 ServerMessage::YouHaveBeenQualified => {
                     if !self.args.editor {

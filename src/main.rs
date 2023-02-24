@@ -54,6 +54,7 @@ impl SfxConfig {
 #[derive(geng::Assets, Deserialize)]
 #[asset(json)]
 pub struct Config {
+    pub cat_location_text: Vec<String>,
     pub min_players: usize,
     pub zoom_speed: f32,
     pub nameplate_size: f32,
