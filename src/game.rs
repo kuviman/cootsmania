@@ -708,6 +708,11 @@ impl Game {
             }
         }
 
+        let cat_pos = self.level.cat_locations[self.round.track.to];
+        if (player.pos - cat_pos).len() < self.config.player_radius * 2.0 && self.text.is_none() {
+            self.text = Some(("STOP!".to_owned(), 0.0));
+        }
+
         self.camera.center +=
             (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
     }
@@ -900,32 +905,35 @@ impl Game {
         let outline_size = 0.03;
 
         // Time
-        self.geng.draw_2d(
-            framebuffer,
-            ui_camera,
-            &draw_2d::TexturedQuad::new(
-                Aabb2::point(ui_aabb.top_left() + vec2(padding, -padding - font_size))
-                    .extend_positive(vec2(font_size, font_size)),
-                &self.assets.ui.time,
-            ),
-        );
-        self.assets.font.draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &{
-                let millis = self.cat_move_time.max(0.0) * 1000.0;
-                let millis = millis as i64;
-                let secs = millis / 1000;
-                let millis = millis % 1000;
-                format!("{secs}:{millis}")
-            },
-            ui_aabb.top_left() + vec2(padding + font_size, -font_size - padding),
-            geng::TextAlign::LEFT,
-            font_size,
-            Rgba::WHITE,
-            outline_size,
-            Rgba::BLACK,
-        );
+        {
+            let font_size = font_size * 2.0;
+            self.geng.draw_2d(
+                framebuffer,
+                ui_camera,
+                &draw_2d::TexturedQuad::new(
+                    Aabb2::point(ui_aabb.top_left() + vec2(padding, -padding - font_size))
+                        .extend_positive(vec2(font_size, font_size)),
+                    &self.assets.ui.time,
+                ),
+            );
+            self.assets.font.draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &{
+                    let millis = self.cat_move_time.max(0.0) * 1000.0;
+                    let millis = millis as i64;
+                    let secs = millis / 1000;
+                    let millis = millis % 1000;
+                    format!("{secs}:{millis}")
+                },
+                ui_aabb.top_left() + vec2(padding + font_size, -font_size - padding),
+                geng::TextAlign::LEFT,
+                font_size,
+                Rgba::WHITE,
+                outline_size,
+                Rgba::BLACK,
+            );
+        }
 
         let Numbers {
             players_left,
@@ -949,82 +957,85 @@ impl Game {
         );
 
         // Num of players
-        let numbers_width = 1.0;
-        self.geng.draw_2d(
-            framebuffer,
-            ui_camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.ui.players_left)
-                .translate(vec2(1.0, 1.0))
-                .scale_uniform(font_size / 2.0)
-                .translate(
-                    ui_aabb.top_right()
-                        - vec2(
-                            padding + numbers_width + padding + font_size,
-                            font_size + padding,
-                        ),
-                ),
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            ui_camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.ui.spectators)
-                .translate(vec2(1.0, 1.0))
-                .scale_uniform(font_size / 2.0)
-                .translate(
-                    ui_aabb.top_right()
-                        - vec2(
-                            padding + numbers_width + padding + font_size,
-                            font_size * 2.0 + padding,
-                        ),
-                ),
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            ui_camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.ui.bots)
-                .translate(vec2(1.0, 1.0))
-                .scale_uniform(font_size / 2.0)
-                .translate(
-                    ui_aabb.top_right()
-                        - vec2(
-                            padding + numbers_width + padding + font_size,
-                            font_size * 3.0 + padding,
-                        ),
-                ),
-        );
-        self.assets.font.draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &players_left.to_string(),
-            ui_aabb.top_right() - vec2(padding + numbers_width, font_size + padding),
-            geng::TextAlign::LEFT,
-            font_size,
-            Rgba::WHITE,
-            outline_size,
-            Rgba::BLACK,
-        );
-        self.assets.font.draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &spectators.to_string(),
-            ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 2.0 + padding),
-            geng::TextAlign::LEFT,
-            font_size,
-            Rgba::WHITE,
-            outline_size,
-            Rgba::BLACK,
-        );
-        self.assets.font.draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &bots.to_string(),
-            ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 3.0 + padding),
-            geng::TextAlign::LEFT,
-            font_size,
-            Rgba::WHITE,
-            outline_size,
-            Rgba::BLACK,
-        );
+        {
+            let font_size = font_size * 1.5;
+            let numbers_width = 1.0;
+            self.geng.draw_2d(
+                framebuffer,
+                ui_camera,
+                &draw_2d::TexturedQuad::unit(&self.assets.ui.players_left)
+                    .translate(vec2(1.0, 1.0))
+                    .scale_uniform(font_size / 2.0)
+                    .translate(
+                        ui_aabb.top_right()
+                            - vec2(
+                                padding + numbers_width + padding + font_size,
+                                font_size + padding,
+                            ),
+                    ),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                ui_camera,
+                &draw_2d::TexturedQuad::unit(&self.assets.ui.spectators)
+                    .translate(vec2(1.0, 1.0))
+                    .scale_uniform(font_size / 2.0)
+                    .translate(
+                        ui_aabb.top_right()
+                            - vec2(
+                                padding + numbers_width + padding + font_size,
+                                font_size * 2.0 + padding,
+                            ),
+                    ),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                ui_camera,
+                &draw_2d::TexturedQuad::unit(&self.assets.ui.bots)
+                    .translate(vec2(1.0, 1.0))
+                    .scale_uniform(font_size / 2.0)
+                    .translate(
+                        ui_aabb.top_right()
+                            - vec2(
+                                padding + numbers_width + padding + font_size,
+                                font_size * 3.0 + padding,
+                            ),
+                    ),
+            );
+            self.assets.font.draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &players_left.to_string(),
+                ui_aabb.top_right() - vec2(padding + numbers_width, font_size + padding),
+                geng::TextAlign::LEFT,
+                font_size,
+                Rgba::WHITE,
+                outline_size,
+                Rgba::BLACK,
+            );
+            self.assets.font.draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &spectators.to_string(),
+                ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 2.0 + padding),
+                geng::TextAlign::LEFT,
+                font_size,
+                Rgba::WHITE,
+                outline_size,
+                Rgba::BLACK,
+            );
+            self.assets.font.draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &bots.to_string(),
+                ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 3.0 + padding),
+                geng::TextAlign::LEFT,
+                font_size,
+                Rgba::WHITE,
+                outline_size,
+                Rgba::BLACK,
+            );
+        }
 
         if self.args.editor {
             for &[p1, p2] in &self.level.segments {
