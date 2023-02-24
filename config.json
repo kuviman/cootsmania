@@ -59,5 +59,6 @@
         "max": 10,
         "volume": 2.5
     },
-    "forward_speed_change": 0.1
+    "forward_speed_change": 0.1,
+    "min_players": 8
 }
