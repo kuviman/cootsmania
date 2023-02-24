@@ -881,7 +881,7 @@ impl Game {
             ui_camera,
             &if self.player.is_some() {
                 "go to coots!".to_owned()
-            } else {
+            } else if self.spectating {
                 format!(
                     "wait for current game to finish\n{} round(s) left",
                     if self.numbers.players_left == 0 {
@@ -890,6 +890,8 @@ impl Game {
                         (self.numbers.players_left as f32).log2().ceil() as i32
                     } + if self.round.num == 0 { 1 } else { 0 }
                 )
+            } else {
+                "wait for other players".to_owned()
             },
             vec2(0.0, -4.0),
             geng::TextAlign::CENTER,
