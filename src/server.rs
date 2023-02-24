@@ -81,6 +81,9 @@ impl State {
         let mut bot_updates = Vec::new();
         let mut remove_bots = Vec::new();
         for &id in &self.players {
+            if self.qualified_players.contains(&id) {
+                continue;
+            }
             if let Some(bot) = self.bot_ids.get(&id) {
                 if let Some(player) = bots.next() {
                     player.pos.map(|x| assert!(x.is_finite()));
