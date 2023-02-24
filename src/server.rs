@@ -83,6 +83,7 @@ impl State {
         for &id in &self.players {
             if let Some(bot) = self.bot_ids.get(&id) {
                 if let Some(player) = bots.next() {
+                    player.pos.map(|x| assert!(x.is_finite()));
                     bot_updates.push((id, player));
                 } else {
                     remove_bots.push(id);
@@ -321,6 +322,24 @@ impl Drop for ClientConnection {
     }
 }
 
+fn fix(player: &mut Player) {
+    if !player.pos.x.is_finite() {
+        player.pos.x = 0.0;
+    }
+    if !player.pos.y.is_finite() {
+        player.pos.y = 0.0;
+    }
+    if !player.vel.x.is_finite() {
+        player.vel.x = 0.0;
+    }
+    if !player.vel.y.is_finite() {
+        player.vel.y = 0.0;
+    }
+    if !player.rot.is_finite() {
+        player.rot = 0.0;
+    }
+}
+
 impl geng::net::Receiver<ClientMessage> for ClientConnection {
     fn handle(&mut self, message: ClientMessage) {
         let mut state = self.state.lock().unwrap();
@@ -334,7 +353,8 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
                     .sender
                     .send(ServerMessage::Pong);
             }
-            ClientMessage::UpdatePlayer(player) => {
+            ClientMessage::UpdatePlayer(mut player) => {
+                fix(&mut player);
                 state.update_player(self.id, player);
             }
             ClientMessage::Name(name) => {

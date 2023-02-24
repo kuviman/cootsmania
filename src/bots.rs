@@ -49,7 +49,7 @@ impl MoveData {
         };
         let p1 = &self.data[index];
         let p2 = &self.data[(index + 1).min(self.data.len() - 1)];
-        let t = (time - p1.time) / (p2.time - p1.time);
+        let t = (time - p1.time) / (p2.time - p1.time).max(1.0);
         Player {
             skin: 0,
             color: 0.0,
@@ -71,13 +71,40 @@ impl MoveData {
 #[derive(Serialize, Deserialize)]
 pub struct Data(HashMap<Track, Vec<MoveData>>);
 
+fn fix(player: &mut PlayerSnapshot) {
+    if !player.pos.x.is_finite() {
+        player.pos.x = 0.0;
+    }
+    if !player.pos.y.is_finite() {
+        player.pos.y = 0.0;
+    }
+    if !player.vel.x.is_finite() {
+        player.vel.x = 0.0;
+    }
+    if !player.vel.y.is_finite() {
+        player.vel.y = 0.0;
+    }
+    if !player.rot.is_finite() {
+        player.rot = 0.0;
+    }
+}
+
 impl Data {
     pub async fn load(path: impl AsRef<std::path::Path>) -> Self {
         async fn load(path: impl AsRef<std::path::Path>) -> anyhow::Result<Data> {
             let bytes = file::load_bytes(path).await?;
             Ok(bincode::deserialize(&bytes)?)
         }
-        load(path).await.unwrap_or(Self(default()))
+        let mut data = load(path).await.unwrap_or(Self(default()));
+        for data in data.0.values_mut() {
+            for data in data {
+                for data in &mut data.data {
+                    let data = &mut data.data;
+                    fix(data);
+                }
+            }
+        }
+        data
     }
 
     pub fn push(&mut self, track: Track, replay: MoveData) {

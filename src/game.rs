@@ -160,6 +160,7 @@ impl RemotePlayer {
     fn server_update(&mut self, upd: Player) {
         self.skin = upd.skin;
         self.color = upd.color;
+        upd.pos.map(|x| assert!(x.is_finite()));
         self.pos.server_update(upd.pos, upd.vel);
         self.rot = upd.rot;
     }
@@ -549,6 +550,7 @@ impl Game {
         if self.spectating {
             if let Some(Winner::Other(id)) = self.winner {
                 if let Some(p) = self.remote_players.get(&id) {
+                    p.get().pos.map(|x| assert!(x.is_finite()));
                     self.camera.center += (p.get().pos - self.camera.center)
                         * (self.config.camera_speed * delta_time).min(1.0);
                 }
@@ -702,6 +704,18 @@ impl Game {
     fn draw_game(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Rgba::BLACK), None, None);
 
+        // KEKW
+        if !self.camera.center.x.is_finite()
+            || !self.camera.center.y.is_finite()
+            || !self.camera.fov.is_finite()
+        {
+            self.camera = geng::Camera2d {
+                center: vec2::ZERO,
+                fov: 1.0,
+                rotation: 0.0,
+            };
+        }
+
         let camera = &self.camera;
         let camera_aabb = camera.view_area(self.framebuffer_size).bounding_box();
 
@@ -765,7 +779,6 @@ impl Game {
         for (&id, player) in &self.remote_players {
             self.draw_player_body(framebuffer, camera, &player.get(), Some(id));
         }
-        self.particles.draw(framebuffer, camera);
         if let Some(player) = &self.player {
             self.draw_player_body(framebuffer, camera, player, None);
         }
