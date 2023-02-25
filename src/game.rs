@@ -53,12 +53,15 @@ pub struct SfxAssets {
     pub new_round: geng::Sound,
     #[asset(ext = "mp3")]
     pub qualified: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub victory: geng::Sound,
     #[asset(ext = "mp3", postprocess = "make_looped")]
     pub forward_move: geng::Sound,
 }
 
 #[derive(geng::Assets)]
 pub struct UiAssets {
+    background: ugli::Texture,
     color: ugli::Texture,
     title: ugli::Texture,
     instructions: ugli::Texture,
@@ -68,14 +71,16 @@ pub struct UiAssets {
     settings: ugli::Texture,
     volume: ugli::Texture,
     slider_line: ugli::Texture,
+    volume_slider_line: ugli::Texture,
     slider_knob: ugli::Texture,
     bots: ugli::Texture,
     spectators: ugli::Texture,
     players_left: ugli::Texture,
     time: ugli::Texture,
-    checkbox_on: ugli::Texture,
-    checkbox_off: ugli::Texture,
-    music: ugli::Texture,
+    music_check: ugli::Texture,
+    music_uncheck: ugli::Texture,
+    names_check: ugli::Texture,
+    names_uncheck: ugli::Texture,
 }
 
 #[derive(geng::Assets)]
@@ -486,15 +491,18 @@ impl Game {
                     }
                 }
                 ServerMessage::YouAreWinner => {
+                    self.assets.sfx.victory.play();
                     self.winner = Some(Winner::Me);
                     self.text = Some(("You are the champion!".to_owned(), -2.0));
                 }
                 ServerMessage::Winner(winner) => match winner {
                     Some(id) => {
+                        self.assets.sfx.victory.play();
                         self.winner = Some(Winner::Other(id));
                         self.text = Some(("Champion!".to_owned(), -2.0));
                     }
                     None => {
+                        self.assets.sfx.eliminated.play();
                         self.winner = Some(Winner::None);
                         self.text = Some(("Nobody won :(".to_owned(), -2.0));
                     }
@@ -1466,9 +1474,9 @@ impl geng::State for Game {
                 let button = TextureButton::new(
                     cx,
                     if *value {
-                        &self.assets.ui.checkbox_on
+                        &self.assets.ui.names_check
                     } else {
-                        &self.assets.ui.checkbox_off
+                        &self.assets.ui.names_uncheck
                     },
                     1.0,
                 );
@@ -1482,9 +1490,9 @@ impl geng::State for Game {
                 let button = TextureButton::new(
                     cx,
                     if *value {
-                        &self.assets.ui.checkbox_on
+                        &self.assets.ui.music_check
                     } else {
-                        &self.assets.ui.checkbox_off
+                        &self.assets.ui.music_uncheck
                     },
                     1.0,
                 );
@@ -1588,16 +1596,18 @@ impl geng::State for Game {
             )
                 .column();
             let volume_settings = (
-                TextureWidget::new(&self.assets.ui.music, 1.0)
-                    .padding_right(padding)
+                // TextureWidget::new(&self.assets.ui.music, 1.0)
+                //     .padding_right(padding)
+                //     .center(),
+                checkbox(&mut self.music_on)
+                    .fixed_size(vec2(104.0 / 66.0, 1.0))
                     .center(),
-                checkbox(&mut self.music_on).center(),
                 TextureWidget::new(&self.assets.ui.volume, 1.0)
                     .padding_left(padding)
                     .center(),
                 CustomSlider::new(
                     cx,
-                    &self.assets.ui.slider_line,
+                    &self.assets.ui.volume_slider_line,
                     &self.assets.ui.slider_knob,
                     self.volume,
                     0.0..=1.0,
@@ -1608,7 +1618,7 @@ impl geng::State for Game {
                     }),
                 )
                 .fixed_size({
-                    let mut size = self.assets.ui.slider_line.size().map(|x| x as f64);
+                    let mut size = self.assets.ui.volume_slider_line.size().map(|x| x as f64);
                     size /= size.y;
                     size
                 })
@@ -1626,15 +1636,21 @@ impl geng::State for Game {
                 game_title.center(),
                 play_button.center(),
                 (
-                    (instructions.center(), volume_settings.center())
-                        .column()
+                    TextureWidget::new(&self.assets.ui.background, 1.0),
+                    (
+                        (instructions.center(), volume_settings.center())
+                            .column()
+                            .center(),
+                        customization
+                            .center()
+                            .padding_left(padding)
+                            .padding_top(padding),
+                    )
+                        .row()
+                        .uniform_padding(padding * 2.0)
                         .center(),
-                    customization
-                        .center()
-                        .padding_left(padding)
-                        .padding_top(padding),
                 )
-                    .row()
+                    .stack()
                     .center(),
             )
                 .column()
