@@ -1270,7 +1270,7 @@ impl geng::State for Game {
                 self.geng.ugli(),
                 framebuffer.size().map(|x| (x / 20).max(1)),
             );
-            texture.set_filter(ugli::Filter::Nearest);
+            // texture.set_filter(ugli::Filter::Nearest);
             {
                 let framebuffer = &mut ugli::Framebuffer::new_color(
                     self.geng.ugli(),
@@ -1431,7 +1431,9 @@ impl geng::State for Game {
             if play_button.was_clicked() {
                 self.in_settings = false;
             }
-            let play_button = play_button.fixed_size(vec2(2.0, 1.0));
+            let play_button = play_button
+                .fixed_size(vec2(2.0, 1.0))
+                .padding_left(padding * 2.0);
 
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
@@ -1543,9 +1545,9 @@ impl geng::State for Game {
                 .row();
 
             let game_title =
-                TextureWidget::new(&self.assets.ui.title, 1.0).fixed_size(vec2(4.0, 2.0));
-            let instructions =
-                TextureWidget::new(&self.assets.ui.instructions, 1.0).fixed_size(vec2(4.0, 2.0));
+                TextureWidget::new(&self.assets.ui.title, 1.0).fixed_size(vec2(4.0, 2.0) * 2.0);
+            let instructions = TextureWidget::new(&self.assets.ui.instructions, 1.0)
+                .fixed_size(vec2(4.0, 2.0) * 2.0);
 
             let settings = (
                 game_title.center(),
