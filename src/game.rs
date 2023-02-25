@@ -1430,6 +1430,7 @@ impl geng::State for Game {
             let play_button = TextureButton::new(cx, &self.assets.ui.play, 1.0);
             if play_button.was_clicked() {
                 self.in_settings = false;
+                self.connection.send(ClientMessage::Ready);
             }
             let play_button = play_button.fixed_size(vec2(2.0, 1.0)).padding_top(padding);
 

@@ -1,6 +1,7 @@
 use super::*;
 
 struct Client {
+    ready: bool,
     name: String,
     pos: Option<vec2<f32>>,
     current_replay: bots::MoveData,
@@ -112,10 +113,14 @@ impl State {
     }
     fn new_session(&mut self) {
         let start = thread_rng().gen_range(0..self.level.cat_locations.len());
-        self.players =
-            itertools::chain![self.clients.keys().copied(), self.bot_ids.keys().copied()]
-                .take(self.clients.len().max(self.config.min_players))
-                .collect();
+        self.players = itertools::chain![
+            self.clients
+                .iter()
+                .filter_map(|(&id, client)| client.ready.then_some(id)),
+            self.bot_ids.keys().copied()
+        ]
+        .take(self.clients.len().max(self.config.min_players))
+        .collect();
         if self.players.iter().all(|id| self.bot_ids.contains_key(id)) {
             self.players.clear();
         }
@@ -354,6 +359,13 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
         let mut state = self.state.lock().unwrap();
         let state: &mut State = state.deref_mut();
         match message {
+            ClientMessage::Ready => {
+                state
+                    .clients
+                    .get_mut(&self.id)
+                    .expect("Sender not found for client")
+                    .ready = true;
+            }
             ClientMessage::Ping => {
                 state
                     .clients
@@ -401,6 +413,7 @@ impl geng::net::server::App for App {
         state.clients.insert(
             id,
             Client {
+                ready: false,
                 name: String::new(),
                 current_replay: bots::MoveData::new(),
                 pos: None,
