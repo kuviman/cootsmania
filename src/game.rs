@@ -43,6 +43,8 @@ impl Level {
 pub struct SfxAssets {
     #[asset(ext = "mp3")]
     pub bounce: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub countdown: geng::Sound,
     #[asset(ext = "mp3", postprocess = "make_looped")]
     pub drift: geng::Sound,
     #[asset(ext = "mp3")]
@@ -493,17 +495,21 @@ impl Game {
                             rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                         });
                         self.spectating = false;
+                        self.cat_move_time = self.config.cat_move_time as f32;
+                        self.assets.sfx.new_round.play();
+                        self.text = Some(("GO".to_owned(), 0.0));
                     }
                 }
                 ServerMessage::Numbers(numbers) => {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
+                    self.player = None;
                     self.winner = None;
-                    self.cat_move_time = self.config.cat_move_time as f32;
+                    self.cat_move_time = 3.0;
                     self.remote_players.clear();
                     if self.ready {
-                        self.assets.sfx.new_round.play();
+                        self.assets.sfx.countdown.play().set_volume(3.0);
                     }
                     self.round = round;
                     self.text = Some((
@@ -1021,7 +1027,7 @@ impl Game {
             framebuffer,
             ui_camera,
             &if self.player.is_some() {
-                "go to coots!".to_owned()
+                self.config.cat_location_text[self.round.track.to].clone()
             } else if self.spectating {
                 format!(
                     "wait for current game to finish\n{} round(s) left",

@@ -13,6 +13,7 @@ struct Bot {
 }
 
 struct State {
+    round_countdown: Option<Timer>,
     next_id: Id,
     level: Level,
     config: Config,
@@ -45,6 +46,7 @@ impl State {
             })
             .collect();
         Self {
+            round_countdown: None,
             level,
             config,
             bots,
@@ -63,6 +65,22 @@ impl State {
         }
     }
     fn tick(&mut self) {
+        if let Some(timer) = &mut self.round_countdown {
+            if timer.elapsed().as_secs_f64() as f32 > 3.0 {
+                let start_pos = self.level.cat_locations[self.round.track.from];
+                for id in &self.players {
+                    if let Some(client) = self.clients.get_mut(id) {
+                        client.pos = Some(start_pos);
+                        client
+                            .sender
+                            .send(ServerMessage::YouHaveBeenRespawned(start_pos));
+                    }
+                }
+                self.round_timer = Timer::new();
+                self.round_countdown = None;
+            }
+            return;
+        }
         if let Some(timer) = &mut self.new_session_timer {
             if timer.elapsed().as_secs_f64() as f32 > self.config.new_session_time {
                 self.new_session_timer = None;
@@ -145,18 +163,8 @@ impl State {
                 .send(ServerMessage::NewRound(self.round.clone()));
         }
 
-        let start_pos = self.level.cat_locations[from];
-        for id in &self.players {
-            if let Some(client) = self.clients.get_mut(id) {
-                client.pos = Some(start_pos);
-                client
-                    .sender
-                    .send(ServerMessage::YouHaveBeenRespawned(start_pos));
-            }
-        }
-
+        self.round_countdown = Some(Timer::new());
         self.qualified_players.clear();
-        self.round_timer = Timer::new();
         self.update_numbers();
     }
     fn player_finished(&mut self, id: Id) {
