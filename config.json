@@ -22,7 +22,7 @@
         1.3
     ],
     "replay_fps": 10,
-    "server_recordings": true,
+    "server_recordings": false,
     "map_scale": 30,
     "new_session_time": 7,
     "zoom_speed": 100,
