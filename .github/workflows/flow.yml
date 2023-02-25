@@ -1,7 +1,7 @@
 name: Flow
 on: push
 env:
-  CONNECT: wss://lj23.kuviman.com
+  CONNECT: wss://server.cootsmania.kuviman.com
 
 jobs:
   build:

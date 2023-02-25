@@ -505,7 +505,9 @@ impl Game {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
-                    self.player = None;
+                    if !self.args.editor {
+                        self.player = None;
+                    }
                     self.winner = None;
                     self.cat_move_time = 3.0;
                     self.remote_players.clear();
