@@ -13,7 +13,11 @@ jobs:
         uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: cargo geng build --release --target wasm32-unknown-unknown
-      - run: cp -r assets bots.data config.json level.json target/geng/ # because of
+      - run: |
+          cp -r assets target/geng/
+          cp -r bots.data target/geng/
+          cp -r config.json target/geng/
+          cp -r level.json target/geng/
       - name: Upload artifacts (web)
         uses: actions/upload-artifact@v2
         with:
@@ -51,7 +55,11 @@ jobs:
         with:
           command: geng
           args: build --release
-      - run: cp -r assets bots.data config.json level.json target/geng/ # because of
+      - run: |
+          cp -r assets target/geng/
+          cp -r bots.data target/geng/
+          cp -r config.json target/geng/
+          cp -r level.json target/geng/
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
