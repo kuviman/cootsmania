@@ -248,6 +248,7 @@ impl State {
             let winner = self.players.iter().copied().next();
             for (&client_id, client) in &mut self.clients {
                 if Some(client_id) == winner {
+                    client.pos = Some(self.level.cat_locations[self.round.track.to]);
                     client.sender.send(ServerMessage::YouHaveBeenRespawned(
                         self.level.cat_locations[self.round.track.to],
                     ));
