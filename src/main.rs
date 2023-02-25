@@ -6,6 +6,7 @@ mod interop;
 mod interpolation;
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
+mod test;
 mod ui;
 
 use interop::*;
@@ -106,6 +107,8 @@ pub struct Args {
     pub editor: bool,
     #[clap(flatten)]
     pub geng: geng::CliArgs,
+    #[clap(long)]
+    pub test: bool,
 }
 
 fn main() {
@@ -141,6 +144,11 @@ fn main() {
         } else {
             None
         };
+
+        if args.test {
+            let addr = args.connect.clone().unwrap();
+            std::thread::spawn(move || test::run(&addr));
+        }
 
         let geng = Geng::new_with(geng::ContextOptions {
             title: "Coots".to_owned(),
