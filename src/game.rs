@@ -498,10 +498,12 @@ impl Game {
                             rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
                         });
                         self.spectating = false;
-                        self.cat_move_time = self.config.cat_move_time as f32;
                         self.assets.sfx.new_round.play();
                         self.text = Some(("GO".to_owned(), 0.0));
                     }
+                }
+                ServerMessage::RoundStarted => {
+                    self.cat_move_time = self.config.cat_move_time as f32;
                 }
                 ServerMessage::Numbers(numbers) => {
                     self.numbers = numbers;

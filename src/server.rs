@@ -83,6 +83,9 @@ impl State {
                             .send(ServerMessage::YouHaveBeenRespawned(start_pos));
                     }
                 }
+                for client in self.clients.values_mut() {
+                    client.sender.send(ServerMessage::RoundStarted);
+                }
                 self.round_timer = Some(Timer::new());
                 self.round_countdown = None;
                 info!("Round started");

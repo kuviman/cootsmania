@@ -48,4 +48,5 @@ pub enum ServerMessage {
     YouAreWinner,
     Winner(Option<Id>),
     YourName(String),
+    RoundStarted,
 }
