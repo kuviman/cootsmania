@@ -9,14 +9,14 @@ pub struct PlayerSnapshot {
 }
 
 #[derive(Serialize, Deserialize)]
-struct TimedData {
-    time: f32,
-    data: PlayerSnapshot,
+pub struct TimedData {
+    pub time: f32,
+    pub data: PlayerSnapshot,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct MoveData {
-    data: Vec<TimedData>,
+    pub data: Vec<TimedData>,
 }
 
 pub struct Result {
@@ -69,7 +69,7 @@ impl MoveData {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Data(HashMap<Track, Vec<MoveData>>);
+pub struct Data(pub HashMap<Track, Vec<MoveData>>);
 
 fn fix(player: &mut PlayerSnapshot) {
     if !player.pos.x.is_finite() {

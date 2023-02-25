@@ -37,9 +37,19 @@ impl State {
         let config: Config =
             serde_json::from_reader(std::fs::File::open(run_dir().join("config.json")).unwrap())
                 .unwrap();
-        let bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.data")));
+        let mut bots = futures::executor::block_on(bots::Data::load(run_dir().join("bots.data")));
+        for (track, data) in &mut bots.0 {
+            data.retain(|data| {
+                (data.data.first().unwrap().data.pos - level.cat_locations[track.from]).len()
+                    < config.player_radius * 2.0
+                    && (data.data.last().unwrap().data.pos - level.cat_locations[track.to]).len()
+                        < config.player_radius * 2.0
+            });
+            data.sort_by_key(|data| r32(-data.data.last().unwrap().time));
+        }
+
         let mut next_id = 0;
-        let bot_ids = (0..bots.max_bots())
+        let bot_ids = (0..config.min_players)
             .map(|index| {
                 let data = (next_id, Bot { index });
                 next_id += 1;
