@@ -446,3 +446,11 @@ impl geng::net::server::App for App {
         }
     }
 }
+
+#[test]
+fn test_brainoid() {
+    assert_eq!(
+        "brainoid",
+        rustrict::CensorIter::censor("brainoid".chars()).collect::<String>()
+    );
+}

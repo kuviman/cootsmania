@@ -1593,7 +1593,9 @@ impl geng::State for Game {
                 self.ready = true;
                 self.connection.send(ClientMessage::Ready);
             }
-            let play_button = play_button.fixed_size(vec2(2.0, 1.0)).padding_top(padding);
+            let play_button = play_button
+                .fixed_size(vec2(2.0, 1.0))
+                .padding_bottom(padding);
 
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
