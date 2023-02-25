@@ -4,6 +4,7 @@ pub struct TextureButton<'a> {
     sense: &'a mut geng::ui::Sense,
     clicked: bool,
     texture: &'a ugli::Texture,
+    hover_texture: &'a ugli::Texture,
     size: f64,
 }
 
@@ -14,6 +15,22 @@ impl<'a> TextureButton<'a> {
             clicked: sense.take_clicked(),
             sense,
             texture,
+            hover_texture: texture,
+            size,
+        }
+    }
+    pub fn new2(
+        cx: &'a geng::ui::Controller,
+        texture: &'a ugli::Texture,
+        hover_texture: &'a ugli::Texture,
+        size: f64,
+    ) -> Self {
+        let sense: &'a mut geng::ui::Sense = cx.get_state();
+        Self {
+            clicked: sense.take_clicked(),
+            sense,
+            texture,
+            hover_texture,
             size,
         }
     }
@@ -44,10 +61,14 @@ impl geng::ui::Widget for TextureButton<'_> {
         cx.geng.draw_2d(
             cx.framebuffer,
             &geng::PixelPerfectCamera,
-            &draw_2d::TexturedQuad::unit(self.texture)
-                .scale_uniform(size)
-                .scale(cx.position.size().map(|x| x as f32 / 2.0))
-                .translate(cx.position.center().map(|x| x as f32)),
+            &draw_2d::TexturedQuad::unit(if self.sense.is_hovered() {
+                self.hover_texture
+            } else {
+                self.texture
+            })
+            .scale_uniform(size)
+            .scale(cx.position.size().map(|x| x as f32 / 2.0))
+            .translate(cx.position.center().map(|x| x as f32)),
         );
     }
 }

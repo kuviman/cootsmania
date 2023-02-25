@@ -63,6 +63,7 @@ pub struct SfxAssets {
 
 #[derive(geng::Assets)]
 pub struct UiAssets {
+    play_unhovered: ugli::Texture,
     background: ugli::Texture,
     color: ugli::Texture,
     title: ugli::Texture,
@@ -1587,15 +1588,20 @@ impl geng::State for Game {
                 button
             };
 
-            let play_button = TextureButton::new(cx, &self.assets.ui.play, 1.0);
+            let play_button = TextureButton::new2(
+                cx,
+                &self.assets.ui.play_unhovered,
+                &self.assets.ui.play,
+                1.0,
+            );
             if play_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = true;
                 self.connection.send(ClientMessage::Ready);
             }
             let play_button = play_button
-                .fixed_size(vec2(2.0, 1.0))
-                .padding_bottom(padding);
+                .fixed_size(vec2(2.0, 1.0) * 1.5)
+                .padding_top(-padding);
 
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
