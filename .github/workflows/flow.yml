@@ -14,7 +14,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo geng build --release --target wasm32-unknown-unknown
       - run: |
-          cp -r assets target/geng/
           cp -r bots.data target/geng/
           cp -r config.json target/geng/
           cp -r level.json target/geng/
@@ -56,7 +55,6 @@ jobs:
           command: geng
           args: build --release
       - run: |
-          cp -r assets target/geng/
           cp -r bots.data target/geng/
           cp -r config.json target/geng/
           cp -r level.json target/geng/
