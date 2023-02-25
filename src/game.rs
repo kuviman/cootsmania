@@ -81,6 +81,7 @@ pub struct UiAssets {
 #[derive(geng::Assets)]
 pub struct Shaders {
     foo: ugli::Program,
+    texture_instancing: ugli::Program,
 }
 
 #[derive(geng::Assets)]
@@ -250,7 +251,14 @@ enum Winner {
     Other(Id),
 }
 
+#[derive(ugli::Vertex)]
+struct TextureInstance {
+    i_color: Rgba<f32>,
+    i_mat: mat3<f32>,
+}
+
 pub struct Game {
+    texture_instances: RefCell<HashMap<*const ugli::Texture, ugli::VertexBuffer<TextureInstance>>>,
     winner: Option<Winner>,
     geng: Geng,
     color: f32,
@@ -283,6 +291,7 @@ pub struct Game {
     t: f32,
     show_player_names: bool,
     next_player_update: f32,
+    quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
 }
 
 impl Game {
@@ -311,6 +320,24 @@ impl Game {
             color
         });
         Self {
+            quad_geometry: ugli::VertexBuffer::new_static(
+                geng.ugli(),
+                vec![
+                    draw_2d::Vertex {
+                        a_pos: vec2(0.0, 0.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, 0.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, 1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(0.0, 1.0),
+                    },
+                ],
+            ),
+            texture_instances: default(),
             color,
             music_on,
             music: None,
@@ -476,6 +503,46 @@ impl Game {
         }
     }
 
+    fn draw_texture_instances(&self, framebuffer: &mut ugli::Framebuffer, camera: &geng::Camera2d) {
+        let mut texture_instances = self.texture_instances.borrow_mut();
+        let camera_uniforms = geng::camera2d_uniforms(camera, self.framebuffer_size);
+        for texture in itertools::chain![
+            [&self.assets.car, &self.assets.car_color],
+            &self.assets.player
+        ] {
+            if let Some(instances) = texture_instances.get_mut(&(texture as *const ugli::Texture)) {
+                ugli::draw(
+                    framebuffer,
+                    &self.assets.shaders.texture_instancing,
+                    ugli::DrawMode::TriangleFan,
+                    ugli::instanced(&self.quad_geometry, &*instances),
+                    (
+                        ugli::uniforms! {
+                            u_texture: texture,
+                        },
+                        &camera_uniforms,
+                    ),
+                    ugli::DrawParameters {
+                        blend_mode: Some(ugli::BlendMode::straight_alpha()),
+                        ..default()
+                    },
+                );
+                instances.clear();
+            }
+        }
+    }
+
+    fn add_texture_instance(&self, texture: &ugli::Texture, color: Rgba<f32>, matrix: mat3<f32>) {
+        let mut instances = self.texture_instances.borrow_mut();
+        instances
+            .entry(texture as *const ugli::Texture)
+            .or_insert_with(|| ugli::VertexBuffer::new_dynamic(self.geng.ugli(), vec![]))
+            .push(TextureInstance {
+                i_color: color,
+                i_mat: matrix,
+            });
+    }
+
     fn draw_player_car(
         &self,
         framebuffer: &mut ugli::Framebuffer,
@@ -484,30 +551,21 @@ impl Game {
         id: Option<Id>, // None = me
     ) {
         let alpha = if id.is_some() { 0.5 } else { 1.0 };
-        if let Some(texture) = self.assets.player.get(player.skin) {
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::TexturedQuad::unit_colored(
-                    &self.assets.car,
-                    Rgba::new(1.0, 1.0, 1.0, alpha),
-                )
-                .rotate(player.rot)
-                .scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
-                .translate(player.pos + vec2(0.0, 0.4)),
-            );
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::TexturedQuad::unit_colored(
-                    &self.assets.car_color,
-                    batbox::color::Hsva::new(player.color, 1.0, 1.0, alpha).into(),
-                )
-                .rotate(player.rot)
-                .scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
-                .translate(player.pos + vec2(0.0, 0.4)),
-            );
-        }
+        self.add_texture_instance(
+            &self.assets.car,
+            Rgba::new(1.0, 1.0, 1.0, alpha),
+            mat3::translate(player.pos + vec2(0.0, 0.4))
+                * mat3::scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                * mat3::rotate(player.rot),
+        );
+
+        self.add_texture_instance(
+            &self.assets.car_color,
+            batbox::color::Hsva::new(player.color, 1.0, 1.0, alpha).into(),
+            mat3::translate(player.pos + vec2(0.0, 0.4))
+                * mat3::scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                * mat3::rotate(player.rot),
+        );
     }
 
     fn draw_player_body(
@@ -519,39 +577,37 @@ impl Game {
     ) {
         let alpha = if id.is_some() { 0.5 } else { 1.0 };
         if let Some(texture) = self.assets.player.get(player.skin) {
-            self.geng.draw_2d(
+            self.add_texture_instance(
+                texture,
+                Rgba::new(1.0, 1.0, 1.0, alpha),
+                mat3::translate(player.pos + vec2(0.0, self.config.player_radius))
+                    * mat3::scale_uniform(self.config.player_radius / std::f32::consts::SQRT_2),
+            );
+        }
+    }
+
+    fn draw_player_name(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &geng::Camera2d,
+        player: &Player,
+        id: Option<Id>, // None = me
+    ) {
+        if self.show_player_names {
+            self.assets.font.draw_with_outline(
                 framebuffer,
                 camera,
-                &draw_2d::TexturedQuad::unit_colored(texture, Rgba::new(1.0, 1.0, 1.0, alpha))
-                    .scale_uniform(self.config.player_radius / std::f32::consts::SQRT_2)
-                    .translate(player.pos + vec2(0.0, self.config.player_radius)),
+                match id {
+                    None => &self.name,
+                    Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
+                },
+                player.pos + vec2(0.0, self.config.player_radius * 2.0),
+                geng::TextAlign::CENTER,
+                self.config.nameplate_size,
+                Rgba::WHITE,
+                self.config.nameplate_outline_size,
+                Rgba::BLACK,
             );
-            // self.geng.draw_2d(
-            //     framebuffer,
-            //     camera,
-            //     &draw_2d::Ellipse::circle(
-            //         player.pos,
-            //         self.config.player_radius,
-            //         Rgba::new(1.0, 0.0, 0.0, 0.5),
-            //     ),
-            // );
-
-            if self.show_player_names {
-                self.assets.font.draw_with_outline(
-                    framebuffer,
-                    camera,
-                    match id {
-                        None => &self.name,
-                        Some(id) => self.names.get(&id).map(|s| s.as_str()).unwrap_or(""),
-                    },
-                    player.pos + vec2(0.0, self.config.player_radius * 2.0),
-                    geng::TextAlign::CENTER,
-                    self.config.nameplate_size,
-                    Rgba::WHITE,
-                    self.config.nameplate_outline_size,
-                    Rgba::BLACK,
-                );
-            }
         }
     }
 
@@ -785,10 +841,13 @@ impl Game {
         for (&id, player) in &self.remote_players {
             self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
         }
+        self.draw_texture_instances(framebuffer, camera);
         self.particles.draw(framebuffer, camera);
+
         if let Some(player) = &self.player {
             self.draw_player_car(framebuffer, camera, player, None);
         }
+        self.draw_texture_instances(framebuffer, camera);
 
         self.geng.draw_2d(
             framebuffer,
@@ -802,6 +861,7 @@ impl Game {
         if let Some(player) = &self.player {
             self.draw_player_body(framebuffer, camera, player, None);
         }
+        self.draw_texture_instances(framebuffer, camera);
 
         self.draw_part(
             framebuffer,
@@ -836,6 +896,13 @@ impl Game {
                     &self.assets.coots,
                 ),
             );
+        }
+
+        for (&id, player) in self.remote_players.iter().take(50) {
+            self.draw_player_name(framebuffer, camera, &player.get(), Some(id));
+        }
+        if let Some(player) = &self.player {
+            self.draw_player_name(framebuffer, camera, player, None);
         }
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
