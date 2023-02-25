@@ -380,7 +380,7 @@ impl Game {
             match &message {
                 ServerMessage::Pong => {}
                 ServerMessage::UpdatePlayer(..) => {}
-                _ => info!("{message:?}"),
+                _ => debug!("{message:?}"),
             }
             match message {
                 ServerMessage::YourName(name) => {
@@ -1431,9 +1431,7 @@ impl geng::State for Game {
             if play_button.was_clicked() {
                 self.in_settings = false;
             }
-            let play_button = play_button
-                .fixed_size(vec2(2.0, 1.0))
-                .padding_left(padding * 2.0);
+            let play_button = play_button.fixed_size(vec2(2.0, 1.0)).padding_top(padding);
 
             let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
             if skin_button_previous.was_clicked() {
@@ -1460,23 +1458,25 @@ impl geng::State for Game {
                 TextureWidget::new(&self.assets.player[self.skin], 1.0).center()
             ];
             let customization = (
-                Text::new(
-                    if self.name.is_empty() {
-                        "type your name by pressing keys"
-                    } else {
-                        self.name.as_str()
-                    },
-                    &self.assets.font,
-                    1.0,
-                    if self.name.is_empty() {
-                        gray
-                    } else {
-                        Rgba::WHITE
-                    },
-                )
-                .center(),
                 (
-                    Text::new("show player names", &self.assets.font, 1.0, gray).center(),
+                    CustomText::new(
+                        if self.name.is_empty() {
+                            "just type your name"
+                        } else {
+                            self.name.as_str()
+                        },
+                        &self.assets.font,
+                        1.0,
+                        if self.name.is_empty() {
+                            gray
+                        } else {
+                            Rgba::WHITE
+                        },
+                    )
+                    .center()
+                    .fixed_size(vec2(5.0, 1.0))
+                    .center(),
+                    // Text::new("show player names", &self.assets.font, 1.0, gray).center(),
                     checkbox_with_callback(&mut self.show_player_names, &|value| {
                         preferences::save("show_player_names", &value);
                     })
@@ -1489,8 +1489,11 @@ impl geng::State for Game {
                     skin_button_previous.center(),
                     current_skin.center(),
                     skin_button_next.center(),
+                )
+                    .row()
+                    .center(),
+                (
                     TextureWidget::new(&self.assets.ui.color, 1.0)
-                        .padding_left(padding * 3.0)
                         .padding_right(padding)
                         .center(),
                     CustomSlider::new(
@@ -1512,12 +1515,17 @@ impl geng::State for Game {
                     .center(),
                 )
                     .row()
+                    .padding_top(padding)
                     .center(),
             )
                 .column();
             let volume_settings = (
+                TextureWidget::new(&self.assets.ui.music, 1.0)
+                    .padding_right(padding)
+                    .center(),
+                checkbox(&mut self.music_on).center(),
                 TextureWidget::new(&self.assets.ui.volume, 1.0)
-                    .uniform_padding(padding)
+                    .padding_left(padding)
                     .center(),
                 CustomSlider::new(
                     cx,
@@ -1536,11 +1544,8 @@ impl geng::State for Game {
                     size /= size.y;
                     size
                 })
+                .padding_left(padding)
                 .center(),
-                TextureWidget::new(&self.assets.ui.music, 1.0)
-                    .uniform_padding(padding)
-                    .center(),
-                checkbox(&mut self.music_on).center(),
             )
                 .row();
 
@@ -1551,9 +1556,18 @@ impl geng::State for Game {
 
             let settings = (
                 game_title.center(),
-                (instructions.center(), play_button.center()).row().center(),
-                customization.center(),
-                volume_settings.center(),
+                play_button.center(),
+                (
+                    (instructions.center(), volume_settings.center())
+                        .column()
+                        .center(),
+                    customization
+                        .center()
+                        .padding_left(padding)
+                        .padding_top(padding),
+                )
+                    .row()
+                    .center(),
             )
                 .column()
                 .center();

@@ -241,3 +241,78 @@ impl<'a> geng::ui::Widget for CustomSlider<'a> {
         geng::ui::Constraints::default()
     }
 }
+
+pub struct CustomText<T: AsRef<str>, F: AsRef<geng::Font>> {
+    text: T,
+    font: F,
+    size: f32,
+    color: Rgba<f32>,
+}
+
+impl<T: AsRef<str>, F: AsRef<geng::Font>> CustomText<T, F> {
+    pub fn new(text: T, font: F, size: f32, color: Rgba<f32>) -> Self {
+        Self {
+            text,
+            font,
+            size,
+            color,
+        }
+    }
+}
+
+fn calc_text_constraints(
+    text: &str,
+    font: &geng::Font,
+    size: f32,
+    _cx: &geng::ui::ConstraintsContext,
+) -> geng::ui::Constraints {
+    geng::ui::Constraints {
+        min_size: vec2(
+            font.measure(text, size)
+                .map_or(0.0, |aabb| aabb.width() as f64),
+            size as f64,
+        ),
+        flex: vec2(0.0, 0.0),
+    }
+}
+
+fn draw_text(
+    text: &str,
+    font: &geng::Font,
+    size: f32,
+    color: Rgba<f32>,
+    cx: &mut geng::ui::DrawContext,
+) {
+    if text.is_empty() {
+        return;
+    }
+    let size = partial_min(
+        cx.position.height() as f32,
+        size * cx.position.width() as f32
+            / font.measure(text, size).map_or(0.0, |aabb| aabb.width()),
+    );
+    font.draw(
+        cx.framebuffer,
+        &geng::PixelPerfectCamera,
+        text,
+        cx.position.bottom_left().map(|x| x as f32) + vec2(0.0, -font.descender() * size),
+        geng::TextAlign::LEFT,
+        size,
+        color,
+    );
+}
+
+impl<T: AsRef<str>, F: AsRef<geng::Font>> geng::ui::Widget for CustomText<T, F> {
+    fn calc_constraints(&mut self, cx: &geng::ui::ConstraintsContext) -> geng::ui::Constraints {
+        calc_text_constraints(self.text.as_ref(), self.font.as_ref(), self.size, cx)
+    }
+    fn draw(&mut self, cx: &mut geng::ui::DrawContext) {
+        draw_text(
+            self.text.as_ref(),
+            self.font.as_ref(),
+            self.size,
+            self.color,
+            cx,
+        );
+    }
+}
