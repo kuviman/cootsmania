@@ -265,6 +265,7 @@ pub struct Game {
     remote_players: HashMap<Id, RemotePlayer>,
     cat_move_time: f32,
     text: Option<(String, f32)>,
+    text2: Option<(String, f32)>,
     skin: usize,
     in_settings: bool,
     volume: f64,
@@ -377,6 +378,7 @@ impl Game {
             ),
             texture_instances: default(),
             color,
+            text2: None,
             music_on,
             music: None,
             geng: geng.clone(),
@@ -481,7 +483,7 @@ impl Game {
                 ServerMessage::YouHaveBeenEliminated => {
                     if !self.args.editor {
                         self.player = None;
-                        self.text = Some(("You have been eliminated".to_owned(), 0.0));
+                        self.text2 = Some(("You have been eliminated".to_owned(), -2.0));
                         self.spectating = true;
                         self.assets.sfx.eliminated.play();
                     }
@@ -1063,6 +1065,19 @@ impl Game {
                 Rgba::BLACK,
             );
         }
+        if let Some((ref text, t)) = self.text2 {
+            self.assets.font.draw_with_outline(
+                framebuffer,
+                ui_camera,
+                &text,
+                vec2(0.0, 0.0),
+                geng::TextAlign::CENTER,
+                1.0,
+                Rgba::WHITE,
+                0.05,
+                Rgba::BLACK,
+            );
+        }
         let padding = 0.2;
         let font_size = 0.5;
         let outline_size = 0.03;
@@ -1422,6 +1437,12 @@ impl geng::State for Game {
             *time += delta_time;
             if *time > 1.0 {
                 self.text = None;
+            }
+        }
+        if let Some((_text, time)) = &mut self.text2 {
+            *time += delta_time;
+            if *time > 1.0 {
+                self.text2 = None;
             }
         }
     }
