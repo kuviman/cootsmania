@@ -129,6 +129,11 @@ fn main() {
         }
     }
 
+    if args.test {
+        let addr = args.connect.clone().unwrap();
+        std::thread::spawn(move || test::run(&addr));
+    }
+
     if args.server.is_some() && args.connect.is_none() {
         #[cfg(not(target_arch = "wasm32"))]
         geng::net::Server::new(server::App::new(), args.server.as_deref().unwrap()).run();
@@ -144,11 +149,6 @@ fn main() {
         } else {
             None
         };
-
-        if args.test {
-            let addr = args.connect.clone().unwrap();
-            std::thread::spawn(move || test::run(&addr));
-        }
 
         let geng = Geng::new_with(geng::ContextOptions {
             title: "Coots".to_owned(),
