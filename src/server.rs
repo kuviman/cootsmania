@@ -23,7 +23,7 @@ struct State {
     qualified_players: HashSet<Id>,
     bot_ids: HashMap<Id, Bot>,
     players: HashSet<Id>,
-    round_timer: Timer,
+    round_timer: Option<Timer>,
     new_session_timer: Option<Timer>,
 }
 
@@ -60,7 +60,7 @@ impl State {
             qualified_players: default(),
             players: default(),
             bot_ids,
-            round_timer: Timer::new(),
+            round_timer: None,
             new_session_timer: None,
         }
     }
@@ -76,8 +76,9 @@ impl State {
                             .send(ServerMessage::YouHaveBeenRespawned(start_pos));
                     }
                 }
-                self.round_timer = Timer::new();
+                self.round_timer = Some(Timer::new());
                 self.round_countdown = None;
+                info!("Round started");
             }
             return;
         }
@@ -88,39 +89,44 @@ impl State {
             }
             return;
         }
-        if self.round_timer.elapsed().as_secs_f64() > self.config.cat_move_time as f64
-            || self.players.is_empty()
-        {
-            self.time_up();
-        }
-        let mut bots = self.bots.get(
-            self.round.track,
-            self.round_timer.elapsed().as_secs_f64() as f32,
-        );
-        let mut bot_updates = Vec::new();
-        let mut remove_bots = Vec::new();
-        for &id in &self.players {
-            if self.qualified_players.contains(&id) {
-                continue;
+
+        if let Some(round_timer) = &self.round_timer {
+            if round_timer.elapsed().as_secs_f64() > self.config.cat_move_time as f64
+                || self.players.is_empty()
+            {
+                self.time_up();
             }
-            if let Some(bot) = self.bot_ids.get(&id) {
-                if let Some(player) = bots.next() {
-                    player.pos.map(|x| assert!(x.is_finite()));
-                    bot_updates.push((id, player));
-                } else {
-                    remove_bots.push(id);
+        }
+
+        if let Some(round_timer) = &self.round_timer {
+            let mut bots = self
+                .bots
+                .get(self.round.track, round_timer.elapsed().as_secs_f64() as f32);
+            let mut bot_updates = Vec::new();
+            let mut remove_bots = Vec::new();
+            for &id in &self.players {
+                if self.qualified_players.contains(&id) {
+                    continue;
+                }
+                if let Some(bot) = self.bot_ids.get(&id) {
+                    if let Some(player) = bots.next() {
+                        player.pos.map(|x| assert!(x.is_finite()));
+                        bot_updates.push((id, player));
+                    } else {
+                        remove_bots.push(id);
+                    }
                 }
             }
-        }
-        mem::drop(bots);
-        if !remove_bots.is_empty() {
-            for id in remove_bots {
-                self.players.remove(&id);
+            mem::drop(bots);
+            if !remove_bots.is_empty() {
+                for id in remove_bots {
+                    self.players.remove(&id);
+                }
+                self.update_numbers();
             }
-            self.update_numbers();
-        }
-        for (id, player) in bot_updates {
-            self.update_player(id, player);
+            for (id, player) in bot_updates {
+                self.update_player(id, player);
+            }
         }
 
         if self.qualified_players.len() >= self.round.to_be_qualified
@@ -130,6 +136,7 @@ impl State {
         }
     }
     fn new_session(&mut self) {
+        info!("Starting new session");
         let start = thread_rng().gen_range(0..self.level.cat_locations.len());
         self.players = itertools::chain![
             self.clients
@@ -163,6 +170,7 @@ impl State {
                 .send(ServerMessage::NewRound(self.round.clone()));
         }
 
+        info!("About to start new round...");
         self.round_countdown = Some(Timer::new());
         self.qualified_players.clear();
         self.update_numbers();
@@ -206,6 +214,7 @@ impl State {
     }
 
     fn end_round(&mut self) {
+        self.round_timer = None;
         if self.config.server_recordings {
             for client in self.clients.values_mut() {
                 let replay = mem::replace(&mut client.current_replay, bots::MoveData::new());
@@ -274,11 +283,12 @@ impl State {
         for (&client_id, client) in &mut self.clients {
             if client_id == id {
                 client.pos = Some(player.pos);
-                if !self.qualified_players.contains(&id) && self.config.server_recordings {
-                    client.current_replay.push(
-                        self.round_timer.elapsed().as_secs_f64() as f32,
-                        player.clone(),
-                    );
+                if let Some(round_timer) = &self.round_timer {
+                    if !self.qualified_players.contains(&id) && self.config.server_recordings {
+                        client
+                            .current_replay
+                            .push(round_timer.elapsed().as_secs_f64() as f32, player.clone());
+                    }
                 }
             } else {
                 client
