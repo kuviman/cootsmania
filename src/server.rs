@@ -25,6 +25,7 @@ struct State {
     players: HashSet<Id>,
     round_timer: Option<Timer>,
     new_session_timer: Option<Timer>,
+    numbers: Numbers,
 }
 
 impl State {
@@ -62,6 +63,12 @@ impl State {
             bot_ids,
             round_timer: None,
             new_session_timer: None,
+            numbers: Numbers {
+                players_left: 0,
+                spectators: 0,
+                bots: 0,
+                qualified: 0,
+            },
         }
     }
     fn tick(&mut self) {
@@ -110,7 +117,6 @@ impl State {
                 }
                 if let Some(bot) = self.bot_ids.get(&id) {
                     if let Some(player) = bots.next() {
-                        player.pos.map(|x| assert!(x.is_finite()));
                         bot_updates.push((id, player));
                     } else {
                         remove_bots.push(id);
@@ -202,15 +208,12 @@ impl State {
         let actual_players_left = players_left - bots;
         let spectators = self.clients.len() - actual_players_left;
         let qualified = self.qualified_players.len();
-        let numbers = Numbers {
+        self.numbers = Numbers {
             players_left,
             spectators,
             bots,
             qualified,
         };
-        for client in self.clients.values_mut() {
-            client.sender.send(ServerMessage::Numbers(numbers.clone()));
-        }
     }
 
     fn end_round(&mut self) {
@@ -283,11 +286,13 @@ impl State {
         for (&client_id, client) in &mut self.clients {
             if client_id == id {
                 client.pos = Some(player.pos);
-                if let Some(round_timer) = &self.round_timer {
-                    if !self.qualified_players.contains(&id) && self.config.server_recordings {
-                        client
-                            .current_replay
-                            .push(round_timer.elapsed().as_secs_f64() as f32, player.clone());
+                if self.config.server_recordings {
+                    if let Some(round_timer) = &self.round_timer {
+                        if !self.qualified_players.contains(&id) {
+                            client
+                                .current_replay
+                                .push(round_timer.elapsed().as_secs_f64() as f32, player.clone());
+                        }
                     }
                 }
             } else {
@@ -395,6 +400,12 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
             ClientMessage::UpdatePlayer(mut player) => {
                 fix(&mut player);
                 state.update_player(self.id, player);
+                state
+                    .clients
+                    .get_mut(&self.id)
+                    .unwrap()
+                    .sender
+                    .send(ServerMessage::Numbers(state.numbers.clone()));
             }
             ClientMessage::Name(name) => {
                 let name = name.chars().filter(|c| c.is_ascii_alphabetic()).take(15);

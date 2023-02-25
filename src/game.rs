@@ -1539,7 +1539,6 @@ impl geng::State for Game {
                 }
                 if self.name != old_name {
                     preferences::save("name", &self.name);
-                    self.connection.send(ClientMessage::Name(self.name.clone()));
                 }
             }
             _ => {}
@@ -1599,6 +1598,7 @@ impl geng::State for Game {
             if play_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = true;
+                self.connection.send(ClientMessage::Name(self.name.clone()));
                 self.connection.send(ClientMessage::Ready);
             }
             let play_button = play_button
