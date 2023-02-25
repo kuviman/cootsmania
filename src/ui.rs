@@ -291,7 +291,7 @@ fn draw_text(
         size * cx.position.width() as f32
             / font.measure(text, size).map_or(0.0, |aabb| aabb.width()),
     );
-    font.draw(
+    font.draw_with_outline(
         cx.framebuffer,
         &geng::PixelPerfectCamera,
         text,
@@ -299,6 +299,8 @@ fn draw_text(
         geng::TextAlign::LEFT,
         size,
         color,
+        size * 0.05,
+        Rgba::BLACK,
     );
 }
 

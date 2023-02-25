@@ -91,6 +91,7 @@ pub struct Shaders {
 
 #[derive(geng::Assets)]
 pub struct Assets {
+    pub bounce_particle: ugli::Texture,
     pub shaders: Shaders,
     pub sfx: SfxAssets,
     map_floor: ugli::Texture,
@@ -103,12 +104,13 @@ pub struct Assets {
     car: ugli::Texture,
     car_color: ugli::Texture,
     ui: UiAssets,
+    #[asset(path = "music/Ludwig23_Medium.mp3", postprocess = "make_looped")]
+    music: geng::Sound,
     #[asset(
-        range = r#"["Slow", "Medium", "Fast"]"#,
-        path = "music/Ludwig23_*.mp3",
-        postprocess = "make_each_looped"
+        path = "music/Ludwig23_MainMenu_Faster.mp3",
+        postprocess = "make_looped"
     )]
-    music: Vec<geng::Sound>,
+    menu_music: geng::Sound,
     #[asset(path = "font/Pangolin-Regular.ttf")]
     font: Rc<geng::Font>,
     particle: ugli::Texture,
@@ -226,27 +228,6 @@ impl Particles {
         }
         self.data.retain(|particle| particle.t < 1.0);
     }
-    fn draw(&self, framebuffer: &mut ugli::Framebuffer, camera: &geng::Camera2d) {
-        // TODO optimize
-        for particle in &self.data {
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::TexturedQuad::unit_colored(
-                    &self.assets.particle,
-                    Rgba::new(
-                        1.0,
-                        1.0,
-                        1.0,
-                        (1.0 - particle.t) * self.config.particle_alpha,
-                    ),
-                )
-                .scale_uniform(self.config.particle_size)
-                .rotate(particle.rot)
-                .translate(particle.pos),
-            )
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -263,6 +244,7 @@ struct TextureInstance {
 }
 
 pub struct Game {
+    ready: bool,
     texture_instances: RefCell<HashMap<*const ugli::Texture, ugli::VertexBuffer<TextureInstance>>>,
     winner: Option<Winner>,
     geng: Geng,
@@ -288,11 +270,13 @@ pub struct Game {
     name: String,
     spectating: bool,
     music_on: bool,
+    music_menu: bool,
     music: Option<geng::SoundEffect>,
     drift_sfx: geng::SoundEffect,
     forward_sfx: geng::SoundEffect,
     next_drift_particle: f32,
-    particles: Particles,
+    drift_particles: Particles,
+    bounce_particles: Particles,
     t: f32,
     show_player_names: bool,
     next_player_update: f32,
@@ -300,6 +284,50 @@ pub struct Game {
 }
 
 impl Game {
+    fn draw_particles(
+        &self,
+        particles: &Particles,
+        texture: &ugli::Texture,
+        color: Rgba<f32>,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &geng::Camera2d,
+    ) {
+        ugli::draw(
+            framebuffer,
+            &self.assets.shaders.texture_instancing,
+            ugli::DrawMode::TriangleFan,
+            ugli::instanced(
+                &self.quad_geometry,
+                &ugli::VertexBuffer::new_dynamic(
+                    self.geng.ugli(),
+                    particles
+                        .data
+                        .iter()
+                        .map(|particle| TextureInstance {
+                            i_color: {
+                                let mut color = color;
+                                color.a *= 1.0 - particle.t;
+                                color
+                            },
+                            i_mat: mat3::translate(particle.pos)
+                                * mat3::scale_uniform(self.config.particle_size)
+                                * mat3::rotate(particle.rot),
+                        })
+                        .collect(),
+                ),
+            ),
+            (
+                ugli::uniforms! {
+                    u_texture: texture,
+                },
+                geng::camera2d_uniforms(camera, framebuffer.size().map(|x| x as f32)),
+            ),
+            ugli::DrawParameters {
+                blend_mode: Some(ugli::BlendMode::straight_alpha()),
+                ..default()
+            },
+        );
+    }
     pub fn new(
         geng: &Geng,
         assets: &Rc<Assets>,
@@ -325,6 +353,8 @@ impl Game {
             color
         });
         Self {
+            ready: false,
+            music_menu: true,
             quad_geometry: ugli::VertexBuffer::new_static(
                 geng.ugli(),
                 vec![
@@ -399,7 +429,8 @@ impl Game {
                 effect
             },
             next_drift_particle: 0.0,
-            particles: Particles::new(geng, config, assets),
+            drift_particles: Particles::new(geng, config, assets),
+            bounce_particles: Particles::new(geng, config, assets),
             winner: None,
             t: 0.0,
             next_player_update: 0.0,
@@ -471,7 +502,9 @@ impl Game {
                     self.winner = None;
                     self.cat_move_time = self.config.cat_move_time as f32;
                     self.remote_players.clear();
-                    self.assets.sfx.new_round.play();
+                    if self.ready {
+                        self.assets.sfx.new_round.play();
+                    }
                     self.round = round;
                     self.text = Some((
                         if self.round.num == 0 {
@@ -487,22 +520,30 @@ impl Game {
                     if !self.args.editor {
                         self.player = None;
                         self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
-                        self.assets.sfx.qualified.play();
+                        if self.ready {
+                            self.assets.sfx.qualified.play();
+                        }
                     }
                 }
                 ServerMessage::YouAreWinner => {
-                    self.assets.sfx.victory.play();
+                    if self.ready {
+                        self.assets.sfx.victory.play();
+                    }
                     self.winner = Some(Winner::Me);
                     self.text = Some(("You are the champion!".to_owned(), -2.0));
                 }
                 ServerMessage::Winner(winner) => match winner {
                     Some(id) => {
-                        self.assets.sfx.victory.play();
+                        if self.ready {
+                            self.assets.sfx.victory.play();
+                        }
                         self.winner = Some(Winner::Other(id));
                         self.text = Some(("Champion!".to_owned(), -2.0));
                     }
                     None => {
-                        self.assets.sfx.eliminated.play();
+                        if self.ready {
+                            self.assets.sfx.eliminated.play();
+                        }
                         self.winner = Some(Winner::None);
                         self.text = Some(("Nobody won :(".to_owned(), -2.0));
                     }
@@ -726,7 +767,7 @@ impl Game {
             self.next_drift_particle -= self.config.drift_sfx.get(drift_value) as f32 * delta_time;
             while self.next_drift_particle < 0.0 {
                 self.next_drift_particle += 1.0 / self.config.drift_particles;
-                self.particles.push(player.pos, player.vel);
+                self.drift_particles.push(player.pos, player.vel);
             }
             let forward_value = forward_vel.abs();
             self.forward_sfx
@@ -771,6 +812,12 @@ impl Game {
                     effect.set_speed(thread_rng().gen_range(0.8..1.2));
                     effect.set_volume(sfx_volume);
                     effect.play();
+                    for _ in 0..(sfx_volume * 2.0) as usize {
+                        self.bounce_particles.push(
+                            player.pos - n * self.config.player_radius,
+                            -player.vel * 0.5,
+                        );
+                    }
                 }
                 player.vel -= n * v * (1.0 + self.config.collision_bounciness);
             }
@@ -850,7 +897,6 @@ impl Game {
             self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
         }
         self.draw_texture_instances(framebuffer, camera);
-        self.particles.draw(framebuffer, camera);
 
         if let Some(player) = &self.player {
             self.draw_player_car(framebuffer, camera, player, None);
@@ -878,6 +924,26 @@ impl Game {
             &self.assets.map_furniture_front,
             self.config.player_radius,
             true,
+        );
+
+        self.draw_particles(
+            &self.drift_particles,
+            &self.assets.particle,
+            Rgba::new(1.0, 1.0, 1.0, self.config.particle_alpha),
+            framebuffer,
+            camera,
+        );
+
+        self.draw_particles(
+            &self.bounce_particles,
+            &self.assets.bounce_particle,
+            {
+                let mut c: Rgba<f32> = Hsva::new(self.color, 1.0, 1.0, 1.0).into();
+                c.a *= self.config.particle_alpha;
+                c
+            },
+            framebuffer,
+            camera,
         );
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
@@ -1294,7 +1360,8 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
 
-        self.particles.update(delta_time);
+        self.drift_particles.update(delta_time);
+        self.bounce_particles.update(delta_time);
         self.t += delta_time;
 
         if self.music_on != self.music.is_some() {
@@ -1304,11 +1371,23 @@ impl geng::State for Game {
             if let Some(mut music) = self.music.take() {
                 music.stop();
             }
-        } else if self.music.is_none() {
-            let mut music = self.assets.music[1].effect();
-            music.set_volume(self.config.music_volume as f64);
-            music.play();
-            self.music = Some(music);
+        } else {
+            if self.music_menu != self.in_settings {
+                if let Some(mut music) = self.music.take() {
+                    music.stop();
+                }
+                self.music_menu = self.in_settings;
+            }
+            if self.music.is_none() {
+                let mut music = match self.music_menu {
+                    false => &self.assets.music,
+                    true => &self.assets.menu_music,
+                }
+                .effect();
+                music.set_volume(self.config.music_volume as f64);
+                music.play();
+                self.music = Some(music);
+            }
         }
 
         self.cat_move_time -= delta_time;
@@ -1505,6 +1584,7 @@ impl geng::State for Game {
             let play_button = TextureButton::new(cx, &self.assets.ui.play, 1.0);
             if play_button.was_clicked() {
                 self.in_settings = false;
+                self.ready = true;
                 self.connection.send(ClientMessage::Ready);
             }
             let play_button = play_button.fixed_size(vec2(2.0, 1.0)).padding_top(padding);
