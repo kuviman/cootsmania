@@ -5,7 +5,7 @@ env:
 
 jobs:
   build-web:
-    name: Build
+    name: Build (Web)
     runs-on: ubuntu-latest
     container: kuviman/geng
     steps:
@@ -121,6 +121,16 @@ jobs:
           itchUsername: kuviman
           itchGameId: cootsmania
           buildChannel: mac
+
+  deploy-postjam:
+    name: Deploy (Postjam)
+    if: github.ref == 'refs/heads/postjam' && github.repository_owner == 'kuviman'
+    runs-on: ubuntu-latest
+    needs:
+      - build-web
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
       - name: Deploy GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
