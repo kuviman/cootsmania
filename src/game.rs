@@ -249,6 +249,7 @@ struct TextureInstance {
 
 pub struct Game {
     ready: bool,
+    spectate_zoomed_in: bool,
     texture_instances: RefCell<HashMap<*const ugli::Texture, ugli::VertexBuffer<TextureInstance>>>,
     winner: Option<Winner>,
     geng: Geng,
@@ -359,6 +360,7 @@ impl Game {
             color
         });
         Self {
+            spectate_zoomed_in: false,
             ready: false,
             music_menu: true,
             quad_geometry: ugli::VertexBuffer::new_static(
@@ -490,6 +492,7 @@ impl Game {
                         self.player = None;
                         self.text2 = Some(("You have been eliminated".to_owned(), -2.0));
                         self.spectating = true;
+                        self.spectate_zoomed_in = false;
                         self.assets.sfx.eliminated.play();
                     }
                 }
@@ -686,6 +689,32 @@ impl Game {
                     self.camera.center += (p.get().pos - self.camera.center)
                         * (self.config.camera_speed * delta_time).min(1.0);
                 }
+            } else if self.spectate_zoomed_in {
+                let mut dir = vec2::ZERO;
+                if self.geng.window().is_key_pressed(geng::Key::Left)
+                    || self.geng.window().is_key_pressed(geng::Key::A)
+                {
+                    dir.x -= 1.0;
+                }
+                if self.geng.window().is_key_pressed(geng::Key::Right)
+                    || self.geng.window().is_key_pressed(geng::Key::D)
+                {
+                    dir.x += 1.0;
+                }
+                if self.geng.window().is_key_pressed(geng::Key::Down)
+                    || self.geng.window().is_key_pressed(geng::Key::S)
+                {
+                    dir.y -= 1.0;
+                }
+                if self.geng.window().is_key_pressed(geng::Key::Up)
+                    || self.geng.window().is_key_pressed(geng::Key::W)
+                {
+                    dir.y += 1.0;
+                }
+                self.camera.center += dir * 20.0 * delta_time;
+                self.camera.center = self.camera.center.clamp_aabb(Aabb2::points_bounding_box(
+                    self.level.segments.iter().copied().flatten(),
+                ));
             } else {
                 self.camera.center += (vec2::ZERO - self.camera.center)
                     * (self.config.camera_speed * delta_time).min(1.0);
@@ -1442,6 +1471,8 @@ impl geng::State for Game {
             self.config.camera_fov
         } else if let Some(Winner::Other(_)) = self.winner {
             self.config.camera_fov
+        } else if self.spectate_zoomed_in {
+            self.config.camera_fov
         } else {
             self.config.map_scale * 2.0
         };
@@ -1500,6 +1531,11 @@ impl geng::State for Game {
 
     fn handle_event(&mut self, event: geng::Event) {
         match event {
+            geng::Event::Wheel { delta } => {
+                if self.spectating {
+                    self.spectate_zoomed_in = delta > 0.0;
+                }
+            }
             geng::Event::MouseDown {
                 position,
                 button: geng::MouseButton::Left,
