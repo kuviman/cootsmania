@@ -82,6 +82,7 @@ impl State {
         }
     }
     fn tick(&mut self) {
+        self.update_numbers();
         if let Some(timer) = &mut self.round_countdown {
             if timer.elapsed().as_secs_f64() as f32 > 3.0 {
                 let start_pos = self.level.cat_locations[self.round.track.from];
@@ -141,7 +142,6 @@ impl State {
                 for id in remove_bots {
                     self.players.remove(&id);
                 }
-                self.update_numbers();
             }
             for (id, player) in bot_updates {
                 self.update_player(id, player);
@@ -192,7 +192,6 @@ impl State {
         info!("About to start new round...");
         self.round_countdown = Some(Timer::new());
         self.qualified_players.clear();
-        self.update_numbers();
     }
     fn player_finished(&mut self, id: Id) {
         if let Some(client) = self.clients.get_mut(&id) {
@@ -205,7 +204,6 @@ impl State {
             }
         }
         self.qualified_players.insert(id);
-        self.update_numbers();
     }
     fn time_up(&mut self) {
         self.end_round();
@@ -369,7 +367,6 @@ impl Drop for ClientConnection {
         for other in state.clients.values_mut() {
             other.sender.send(ServerMessage::Disconnect(self.id));
         }
-        state.update_numbers();
     }
 }
 
@@ -410,16 +407,16 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
                     .expect("Sender not found for client")
                     .sender
                     .send(ServerMessage::Pong);
-            }
-            ClientMessage::UpdatePlayer(mut player) => {
-                fix(&mut player);
-                state.update_player(self.id, player);
                 state
                     .clients
                     .get_mut(&self.id)
                     .unwrap()
                     .sender
                     .send(ServerMessage::Numbers(state.numbers.clone()));
+            }
+            ClientMessage::UpdatePlayer(mut player) => {
+                fix(&mut player);
+                state.update_player(self.id, player);
             }
             ClientMessage::Name(name) => {
                 let name = name.chars().filter(|c| c.is_ascii_alphabetic()).take(15);
@@ -464,7 +461,6 @@ impl geng::net::server::App for App {
             },
         );
         state.next_id += 1;
-        state.update_numbers();
         ClientConnection {
             id,
             state: self.state.clone(),
