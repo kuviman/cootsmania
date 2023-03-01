@@ -295,6 +295,10 @@ impl State {
             }
         }
 
+        let message = Arc::new(geng::net::serialize_message(ServerMessage::UpdatePlayer(
+            id,
+            Some(player.clone()),
+        )));
         for (&client_id, client) in &mut self.clients {
             if client_id == id {
                 client.pos = Some(player.pos);
@@ -308,9 +312,7 @@ impl State {
                     }
                 }
             } else {
-                client
-                    .sender
-                    .send(ServerMessage::UpdatePlayer(id, Some(player.clone())));
+                client.sender.send_serialized(message.clone());
             }
         }
 
