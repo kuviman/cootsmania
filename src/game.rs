@@ -64,6 +64,7 @@ pub struct SfxAssets {
 #[derive(geng::Assets)]
 pub struct UiAssets {
     play_unhovered: ugli::Texture,
+    practice: ugli::Texture,
     background: ugli::Texture,
     color: ugli::Texture,
     title: ugli::Texture,
@@ -285,6 +286,7 @@ pub struct Game {
     show_player_names: bool,
     next_player_update: f32,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
+    practice: bool,
 }
 
 impl Game {
@@ -440,6 +442,7 @@ impl Game {
             t: 0.0,
             next_player_update: 0.0,
             show_player_names: preferences::load("show_player_names").unwrap_or(true),
+            practice: false,
         }
     }
 
@@ -460,8 +463,10 @@ impl Game {
                 ServerMessage::Pong => {
                     self.connection.send(ClientMessage::Ping);
                     if let Some(player) = &self.player {
-                        self.connection
-                            .send(ClientMessage::UpdatePlayer(player.clone()));
+                        if !self.practice {
+                            self.connection
+                                .send(ClientMessage::UpdatePlayer(player.clone()));
+                        }
                     }
                 }
                 ServerMessage::UpdatePlayer(id, player) => match player {
@@ -481,7 +486,7 @@ impl Game {
                     self.remote_players.remove(&id);
                 }
                 ServerMessage::YouHaveBeenEliminated => {
-                    if !self.args.editor {
+                    if !self.args.editor && !self.practice {
                         self.player = None;
                         self.text2 = Some(("You have been eliminated".to_owned(), -2.0));
                         self.spectating = true;
@@ -489,7 +494,7 @@ impl Game {
                     }
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
-                    if !self.args.editor {
+                    if !self.args.editor && !self.practice {
                         self.player = Some(Player {
                             skin: self.skin,
                             color: self.color,
@@ -509,7 +514,7 @@ impl Game {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
-                    if !self.args.editor {
+                    if !self.args.editor && !self.practice {
                         self.player = None;
                     }
                     self.winner = None;
@@ -530,7 +535,7 @@ impl Game {
                     ));
                 }
                 ServerMessage::YouHaveBeenQualified => {
-                    if !self.args.editor {
+                    if !self.args.editor && !self.practice {
                         self.player = None;
                         self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
                         if self.ready {
@@ -893,23 +898,27 @@ impl Game {
                 }
                 _ => {}
             }
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::TexturedQuad::colored(
-                    Aabb2::point(pos).extend_uniform(self.config.player_radius),
-                    &self.assets.coots,
-                    Rgba::new(0.0, 0.0, 0.0, 0.3),
-                ),
-            );
+            if !self.practice {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::colored(
+                        Aabb2::point(pos).extend_uniform(self.config.player_radius),
+                        &self.assets.coots,
+                        Rgba::new(0.0, 0.0, 0.0, 0.3),
+                    ),
+                );
+            }
         } else {
             error!("Cat location not found!");
         }
 
-        for (&id, player) in &self.remote_players {
-            self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
+        if !self.practice {
+            for (&id, player) in &self.remote_players {
+                self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
+            }
+            self.draw_texture_instances(framebuffer, camera);
         }
-        self.draw_texture_instances(framebuffer, camera);
 
         if let Some(player) = &self.player {
             self.draw_player_car(framebuffer, camera, player, None);
@@ -922,8 +931,10 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_front),
         );
 
-        for (&id, player) in &self.remote_players {
-            self.draw_player_body(framebuffer, camera, &player.get(), Some(id));
+        if !self.practice {
+            for (&id, player) in &self.remote_players {
+                self.draw_player_body(framebuffer, camera, &player.get(), Some(id));
+            }
         }
         if let Some(player) = &self.player {
             self.draw_player_body(framebuffer, camera, player, None);
@@ -974,26 +985,31 @@ impl Game {
                 }
                 _ => {}
             }
-            self.geng.draw_2d(
-                framebuffer,
-                camera,
-                &draw_2d::TexturedQuad::new(
-                    Aabb2::point(pos + vec2(0.0, 3.0 + (self.t * 2.0).sin() * 0.2))
-                        .extend_uniform(self.config.player_radius * 2.0),
-                    &self.assets.coots,
-                ),
-            );
+
+            if !self.practice {
+                self.geng.draw_2d(
+                    framebuffer,
+                    camera,
+                    &draw_2d::TexturedQuad::new(
+                        Aabb2::point(pos + vec2(0.0, 3.0 + (self.t * 2.0).sin() * 0.2))
+                            .extend_uniform(self.config.player_radius * 2.0),
+                        &self.assets.coots,
+                    ),
+                );
+            }
         }
 
-        for (&id, player) in self.remote_players.iter().take(50) {
-            self.draw_player_name(framebuffer, camera, &player.get(), Some(id));
+        if !self.practice {
+            for (&id, player) in self.remote_players.iter().take(50) {
+                self.draw_player_name(framebuffer, camera, &player.get(), Some(id));
+            }
         }
         if let Some(player) = &self.player {
             self.draw_player_name(framebuffer, camera, player, None);
         }
 
         if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
-            if !camera_aabb.contains(pos) {
+            if !camera_aabb.contains(pos) && !self.practice {
                 let mut aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
                 if aabb.max.x < aabb.min.x {
                     aabb.max.x = aabb.min.x;
@@ -1033,7 +1049,9 @@ impl Game {
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            &if self.player.is_some() {
+            &if self.practice {
+                "SOLO PRACTICE MODE".to_owned()
+            } else if self.player.is_some() {
                 self.config.cat_location_text[self.round.track.to].clone()
             } else if self.spectating {
                 format!(
@@ -1054,167 +1072,169 @@ impl Game {
             0.05,
             Rgba::BLACK,
         );
-        if let Some((ref text, t)) = self.text {
+        if !self.practice {
+            if let Some((ref text, t)) = self.text {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &text,
+                    vec2(0.0, 2.0),
+                    geng::TextAlign::CENTER,
+                    1.0,
+                    Rgba::WHITE,
+                    0.05,
+                    Rgba::BLACK,
+                );
+            }
+            if let Some((ref text, t)) = self.text2 {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &text,
+                    vec2(0.0, 0.0),
+                    geng::TextAlign::CENTER,
+                    1.0,
+                    Rgba::WHITE,
+                    0.05,
+                    Rgba::BLACK,
+                );
+            }
+            let padding = 0.2;
+            let font_size = 0.5;
+            let outline_size = 0.03;
+
+            // Time
+            {
+                let font_size = font_size * 2.0;
+                self.geng.draw_2d(
+                    framebuffer,
+                    ui_camera,
+                    &draw_2d::TexturedQuad::new(
+                        Aabb2::point(ui_aabb.top_left() + vec2(padding, -padding - font_size))
+                            .extend_positive(vec2(font_size, font_size)),
+                        &self.assets.ui.time,
+                    ),
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &{
+                        let millis = self.cat_move_time.max(0.0) * 1000.0;
+                        let millis = millis as i64;
+                        let secs = millis / 1000;
+                        let millis = millis % 1000;
+                        format!("{secs}:{millis}")
+                    },
+                    ui_aabb.top_left() + vec2(padding + font_size, -font_size - padding),
+                    geng::TextAlign::LEFT,
+                    font_size,
+                    Rgba::WHITE,
+                    outline_size,
+                    Rgba::BLACK,
+                );
+            }
+
+            let Numbers {
+                players_left,
+                spectators,
+                bots,
+                qualified,
+            } = self.numbers;
+            let to_be_qualified = self.round.to_be_qualified;
+
+            // Qualified numbers
             self.assets.font.draw_with_outline(
                 framebuffer,
                 ui_camera,
-                &text,
-                vec2(0.0, 2.0),
+                &format!("Qualified: {qualified}/{to_be_qualified}"),
+                vec2(0.0, ui_aabb.max.y - font_size - padding),
                 geng::TextAlign::CENTER,
-                1.0,
-                Rgba::WHITE,
-                0.05,
-                Rgba::BLACK,
-            );
-        }
-        if let Some((ref text, t)) = self.text2 {
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &text,
-                vec2(0.0, 0.0),
-                geng::TextAlign::CENTER,
-                1.0,
-                Rgba::WHITE,
-                0.05,
-                Rgba::BLACK,
-            );
-        }
-        let padding = 0.2;
-        let font_size = 0.5;
-        let outline_size = 0.03;
-
-        // Time
-        {
-            let font_size = font_size * 2.0;
-            self.geng.draw_2d(
-                framebuffer,
-                ui_camera,
-                &draw_2d::TexturedQuad::new(
-                    Aabb2::point(ui_aabb.top_left() + vec2(padding, -padding - font_size))
-                        .extend_positive(vec2(font_size, font_size)),
-                    &self.assets.ui.time,
-                ),
-            );
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &{
-                    let millis = self.cat_move_time.max(0.0) * 1000.0;
-                    let millis = millis as i64;
-                    let secs = millis / 1000;
-                    let millis = millis % 1000;
-                    format!("{secs}:{millis}")
-                },
-                ui_aabb.top_left() + vec2(padding + font_size, -font_size - padding),
-                geng::TextAlign::LEFT,
                 font_size,
                 Rgba::WHITE,
                 outline_size,
                 Rgba::BLACK,
             );
-        }
 
-        let Numbers {
-            players_left,
-            spectators,
-            bots,
-            qualified,
-        } = self.numbers;
-        let to_be_qualified = self.round.to_be_qualified;
-
-        // Qualified numbers
-        self.assets.font.draw_with_outline(
-            framebuffer,
-            ui_camera,
-            &format!("Qualified: {qualified}/{to_be_qualified}"),
-            vec2(0.0, ui_aabb.max.y - font_size - padding),
-            geng::TextAlign::CENTER,
-            font_size,
-            Rgba::WHITE,
-            outline_size,
-            Rgba::BLACK,
-        );
-
-        // Num of players
-        {
-            let font_size = font_size * 1.5;
-            let numbers_width = 1.0;
-            self.geng.draw_2d(
-                framebuffer,
-                ui_camera,
-                &draw_2d::TexturedQuad::unit(&self.assets.ui.players_left)
-                    .translate(vec2(1.0, 1.0))
-                    .scale_uniform(font_size / 2.0)
-                    .translate(
-                        ui_aabb.top_right()
-                            - vec2(
-                                padding + numbers_width + padding + font_size,
-                                font_size + padding,
-                            ),
-                    ),
-            );
-            self.geng.draw_2d(
-                framebuffer,
-                ui_camera,
-                &draw_2d::TexturedQuad::unit(&self.assets.ui.spectators)
-                    .translate(vec2(1.0, 1.0))
-                    .scale_uniform(font_size / 2.0)
-                    .translate(
-                        ui_aabb.top_right()
-                            - vec2(
-                                padding + numbers_width + padding + font_size,
-                                font_size * 2.0 + padding,
-                            ),
-                    ),
-            );
-            self.geng.draw_2d(
-                framebuffer,
-                ui_camera,
-                &draw_2d::TexturedQuad::unit(&self.assets.ui.bots)
-                    .translate(vec2(1.0, 1.0))
-                    .scale_uniform(font_size / 2.0)
-                    .translate(
-                        ui_aabb.top_right()
-                            - vec2(
-                                padding + numbers_width + padding + font_size,
-                                font_size * 3.0 + padding,
-                            ),
-                    ),
-            );
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &players_left.to_string(),
-                ui_aabb.top_right() - vec2(padding + numbers_width, font_size + padding),
-                geng::TextAlign::LEFT,
-                font_size,
-                Rgba::WHITE,
-                outline_size,
-                Rgba::BLACK,
-            );
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &spectators.to_string(),
-                ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 2.0 + padding),
-                geng::TextAlign::LEFT,
-                font_size,
-                Rgba::WHITE,
-                outline_size,
-                Rgba::BLACK,
-            );
-            self.assets.font.draw_with_outline(
-                framebuffer,
-                ui_camera,
-                &bots.to_string(),
-                ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 3.0 + padding),
-                geng::TextAlign::LEFT,
-                font_size,
-                Rgba::WHITE,
-                outline_size,
-                Rgba::BLACK,
-            );
+            // Num of players
+            {
+                let font_size = font_size * 1.5;
+                let numbers_width = 1.0;
+                self.geng.draw_2d(
+                    framebuffer,
+                    ui_camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.ui.players_left)
+                        .translate(vec2(1.0, 1.0))
+                        .scale_uniform(font_size / 2.0)
+                        .translate(
+                            ui_aabb.top_right()
+                                - vec2(
+                                    padding + numbers_width + padding + font_size,
+                                    font_size + padding,
+                                ),
+                        ),
+                );
+                self.geng.draw_2d(
+                    framebuffer,
+                    ui_camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.ui.spectators)
+                        .translate(vec2(1.0, 1.0))
+                        .scale_uniform(font_size / 2.0)
+                        .translate(
+                            ui_aabb.top_right()
+                                - vec2(
+                                    padding + numbers_width + padding + font_size,
+                                    font_size * 2.0 + padding,
+                                ),
+                        ),
+                );
+                self.geng.draw_2d(
+                    framebuffer,
+                    ui_camera,
+                    &draw_2d::TexturedQuad::unit(&self.assets.ui.bots)
+                        .translate(vec2(1.0, 1.0))
+                        .scale_uniform(font_size / 2.0)
+                        .translate(
+                            ui_aabb.top_right()
+                                - vec2(
+                                    padding + numbers_width + padding + font_size,
+                                    font_size * 3.0 + padding,
+                                ),
+                        ),
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &players_left.to_string(),
+                    ui_aabb.top_right() - vec2(padding + numbers_width, font_size + padding),
+                    geng::TextAlign::LEFT,
+                    font_size,
+                    Rgba::WHITE,
+                    outline_size,
+                    Rgba::BLACK,
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &spectators.to_string(),
+                    ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 2.0 + padding),
+                    geng::TextAlign::LEFT,
+                    font_size,
+                    Rgba::WHITE,
+                    outline_size,
+                    Rgba::BLACK,
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &bots.to_string(),
+                    ui_aabb.top_right() - vec2(padding + numbers_width, font_size * 3.0 + padding),
+                    geng::TextAlign::LEFT,
+                    font_size,
+                    Rgba::WHITE,
+                    outline_size,
+                    Rgba::BLACK,
+                );
+            }
         }
 
         if self.args.editor {
@@ -1573,7 +1593,13 @@ impl geng::State for Game {
         let padding = 0.5;
         let settings_button = TextureButton::new(cx, &self.assets.ui.settings, 1.0);
         if settings_button.was_clicked() {
-            self.in_settings = !self.in_settings;
+            self.in_settings = true;
+            self.ready = false;
+            if self.practice {
+                self.player = None;
+                self.spectating = true;
+            }
+            self.connection.send(ClientMessage::Ready(false));
         }
         let settings_button = settings_button
             .uniform_padding(padding)
@@ -1618,13 +1644,35 @@ impl geng::State for Game {
                 &self.assets.ui.play,
                 1.0,
             );
+
+            let practice_button = TextureButton::new(cx, &self.assets.ui.practice, 1.0);
             if play_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = true;
+                self.practice = false;
                 self.connection.send(ClientMessage::Name(self.name.clone()));
                 self.connection.send(ClientMessage::Ready(true));
             }
+            if practice_button.was_clicked() {
+                self.in_settings = false;
+                self.ready = false;
+                self.practice = true;
+                self.spectating = false;
+                if self.player.is_none() {
+                    self.player = Some(Player {
+                        color: self.color,
+                        skin: self.skin,
+                        pos: vec2::ZERO,
+                        vel: vec2::ZERO,
+                        rot: thread_rng().gen_range(0.0..2.0 * f32::PI),
+                    });
+                }
+                self.connection.send(ClientMessage::Ready(false));
+            }
             let play_button = play_button
+                .fixed_size(vec2(2.0, 1.0) * 1.5)
+                .padding_top(-padding);
+            let practice_button = practice_button
                 .fixed_size(vec2(2.0, 1.0) * 1.5)
                 .padding_top(-padding);
 
@@ -1753,7 +1801,9 @@ impl geng::State for Game {
 
             let settings = (
                 game_title.center(),
-                play_button.center(),
+                (play_button.center(), practice_button.center())
+                    .row()
+                    .center(),
                 (
                     TextureWidget::new(&self.assets.ui.background, 1.0),
                     (
