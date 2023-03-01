@@ -7,7 +7,7 @@ pub fn run(addr: &str) {
             futures::executor::block_on(async {
                 let mut connection: geng::net::client::Connection<ServerMessage, ClientMessage> =
                     geng::net::client::connect(&addr).await;
-                connection.send(ClientMessage::Ready);
+                connection.send(ClientMessage::Ready(true));
                 connection.send(ClientMessage::Ping);
                 while let Some(message) = connection.next().await {
                     if let ServerMessage::Pong = message {

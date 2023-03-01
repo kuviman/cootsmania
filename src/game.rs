@@ -1622,7 +1622,7 @@ impl geng::State for Game {
                 self.in_settings = false;
                 self.ready = true;
                 self.connection.send(ClientMessage::Name(self.name.clone()));
-                self.connection.send(ClientMessage::Ready);
+                self.connection.send(ClientMessage::Ready(true));
             }
             let play_button = play_button
                 .fixed_size(vec2(2.0, 1.0) * 1.5)

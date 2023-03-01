@@ -395,12 +395,12 @@ impl geng::net::Receiver<ClientMessage> for ClientConnection {
         let mut state = self.state.lock().unwrap();
         let state: &mut State = state.deref_mut();
         match message {
-            ClientMessage::Ready => {
+            ClientMessage::Ready(ready) => {
                 state
                     .clients
                     .get_mut(&self.id)
                     .expect("Sender not found for client")
-                    .ready = true;
+                    .ready = ready;
             }
             ClientMessage::Ping => {
                 state

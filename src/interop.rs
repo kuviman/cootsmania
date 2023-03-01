@@ -16,7 +16,7 @@ pub enum ClientMessage {
     Ping,
     UpdatePlayer(Player),
     Name(String),
-    Ready,
+    Ready(bool),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
