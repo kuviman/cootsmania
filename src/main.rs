@@ -6,6 +6,7 @@ mod interop;
 mod interpolation;
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
+mod test;
 mod ui;
 
 use interop::*;
@@ -106,6 +107,8 @@ pub struct Args {
     pub editor: bool,
     #[clap(flatten)]
     pub geng: geng::CliArgs,
+    #[clap(long)]
+    pub test: bool,
 }
 
 fn main() {
@@ -126,9 +129,20 @@ fn main() {
         }
     }
 
+    if args.test {
+        let addr = args.connect.clone().unwrap();
+        std::thread::spawn(move || test::run(&addr));
+    }
+
     if args.server.is_some() && args.connect.is_none() {
         #[cfg(not(target_arch = "wasm32"))]
-        geng::net::Server::new(server::App::new(), args.server.as_deref().unwrap()).run();
+        {
+            let server =
+                geng::net::Server::new(server::App::new(), args.server.as_deref().unwrap());
+            let server_handle = server.handle();
+            ctrlc::set_handler(move || server_handle.shutdown()).unwrap();
+            server.run();
+        }
     } else {
         #[cfg(not(target_arch = "wasm32"))]
         let server = if let Some(addr) = &args.server {

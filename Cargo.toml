@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2021"
 default-run = "cootsmania"
 
+[profile.release]
+debug = true
+
 [dependencies]
 geng = { git = "https://github.com/kuviman/geng" }
 serde = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustrict = "0.5"
+ctrlc = "3"
