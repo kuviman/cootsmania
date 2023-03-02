@@ -63,6 +63,8 @@ pub struct SfxAssets {
 
 #[derive(geng::Assets)]
 pub struct UiAssets {
+    telecam_on: ugli::Texture,
+    telecam_off: ugli::Texture,
     play_unhovered: ugli::Texture,
     practice: ugli::Texture,
     practice_unhovered: ugli::Texture,
@@ -1691,6 +1693,23 @@ impl geng::State for Game {
             }
             self.connection.send(ClientMessage::Ready(false));
         }
+
+        let telecam_checkbox = TextureButton::new(
+            cx,
+            if self.telecam {
+                &self.assets.ui.telecam_on
+            } else {
+                &self.assets.ui.telecam_off
+            },
+            1.0,
+        );
+        if telecam_checkbox.was_clicked() {
+            self.telecam = !self.telecam;
+        }
+        let telecam_checkbox = telecam_checkbox
+            .fixed_size(vec2(2.0, 1.0))
+            .uniform_padding(padding)
+            .align(vec2(0.0, 0.0));
         let settings_button = settings_button
             .uniform_padding(padding)
             .align(vec2(1.0, 0.0));
@@ -1920,6 +1939,8 @@ impl geng::State for Game {
                 .column()
                 .center();
             settings.boxed()
+        } else if self.spectating {
+            stack![settings_button, telecam_checkbox].boxed()
         } else {
             settings_button.boxed()
         }
