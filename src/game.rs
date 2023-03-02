@@ -288,7 +288,7 @@ pub struct Game {
     show_player_names: bool,
     next_player_update: f32,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
-    practice: bool,
+    practice: Option<usize>,
 }
 
 impl Game {
@@ -445,7 +445,7 @@ impl Game {
             t: 0.0,
             next_player_update: 0.0,
             show_player_names: preferences::load("show_player_names").unwrap_or(true),
-            practice: false,
+            practice: None,
         }
     }
 
@@ -466,7 +466,7 @@ impl Game {
                 ServerMessage::Pong => {
                     self.connection.send(ClientMessage::Ping);
                     if let Some(player) = &self.player {
-                        if !self.practice {
+                        if self.practice.is_none() {
                             self.connection
                                 .send(ClientMessage::UpdatePlayer(player.clone()));
                         }
@@ -489,7 +489,7 @@ impl Game {
                     self.remote_players.remove(&id);
                 }
                 ServerMessage::YouHaveBeenEliminated => {
-                    if !self.args.editor && !self.practice {
+                    if !self.args.editor && self.practice.is_none() {
                         self.player = None;
                         self.text2 = Some(("You have been eliminated".to_owned(), -2.0));
                         self.spectating = true;
@@ -498,7 +498,7 @@ impl Game {
                     }
                 }
                 ServerMessage::YouHaveBeenRespawned(pos) => {
-                    if !self.args.editor && !self.practice {
+                    if !self.args.editor && self.practice.is_none() {
                         self.player = Some(Player {
                             skin: self.skin,
                             color: self.color,
@@ -518,7 +518,7 @@ impl Game {
                     self.numbers = numbers;
                 }
                 ServerMessage::NewRound(round) => {
-                    if !self.args.editor && !self.practice {
+                    if !self.args.editor && self.practice.is_none() {
                         self.player = None;
                     }
                     self.winner = None;
@@ -539,7 +539,7 @@ impl Game {
                     ));
                 }
                 ServerMessage::YouHaveBeenQualified => {
-                    if !self.args.editor && !self.practice {
+                    if !self.args.editor && self.practice.is_none() {
                         self.player = None;
                         self.text = Some(("QUALIFIED!!!".to_owned(), 0.0));
                         if self.ready {
@@ -683,6 +683,21 @@ impl Game {
     }
 
     fn update_my_player(&mut self, delta_time: f32) {
+        if let Some(to) = self.practice {
+            if let Some(player) = &self.player {
+                let coots = self.level.cat_locations[to];
+                if (player.pos - coots).len() < self.config.player_radius * 2.0
+                    && player.vel.len() < 1e-5
+                {
+                    self.practice = Some(loop {
+                        let new = thread_rng().gen_range(0..self.level.cat_locations.len());
+                        if new != to {
+                            break new;
+                        }
+                    });
+                }
+            }
+        }
         if self.spectating {
             if let Some(Winner::Other(id)) = self.winner {
                 if let Some(p) = self.remote_players.get(&id) {
@@ -913,37 +928,41 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_back),
         );
 
-        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+        if let Some(&pos) = self
+            .level
+            .cat_locations
+            .get(self.practice.unwrap_or(self.round.track.to))
+        {
             let mut pos = pos;
-            match self.winner {
-                Some(Winner::Me) => {
-                    if let Some(player) = &self.player {
-                        pos = player.pos;
+            if self.practice.is_none() {
+                match self.winner {
+                    Some(Winner::Me) => {
+                        if let Some(player) = &self.player {
+                            pos = player.pos;
+                        }
                     }
-                }
-                Some(Winner::Other(id)) => {
-                    if let Some(p) = self.remote_players.get(&id) {
-                        pos = p.get().pos;
+                    Some(Winner::Other(id)) => {
+                        if let Some(p) = self.remote_players.get(&id) {
+                            pos = p.get().pos;
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
-            if !self.practice {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::TexturedQuad::colored(
-                        Aabb2::point(pos).extend_uniform(self.config.player_radius),
-                        &self.assets.coots,
-                        Rgba::new(0.0, 0.0, 0.0, 0.3),
-                    ),
-                );
-            }
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::colored(
+                    Aabb2::point(pos).extend_uniform(self.config.player_radius),
+                    &self.assets.coots,
+                    Rgba::new(0.0, 0.0, 0.0, 0.3),
+                ),
+            );
         } else {
             error!("Cat location not found!");
         }
 
-        if !self.practice {
+        if self.practice.is_none() {
             for (&id, player) in &self.remote_players {
                 self.draw_player_car(framebuffer, camera, &player.get(), Some(id));
             }
@@ -961,7 +980,7 @@ impl Game {
             &draw_2d::TexturedQuad::new(texture_pos, &self.assets.map_furniture_front),
         );
 
-        if !self.practice {
+        if self.practice.is_none() {
             for (&id, player) in &self.remote_players {
                 self.draw_player_body(framebuffer, camera, &player.get(), Some(id));
             }
@@ -1000,36 +1019,39 @@ impl Game {
             camera,
         );
 
-        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
+        if let Some(&pos) = self
+            .level
+            .cat_locations
+            .get(self.practice.unwrap_or(self.round.track.to))
+        {
             let mut pos = pos;
-            match self.winner {
-                Some(Winner::Me) => {
-                    if let Some(player) = &self.player {
-                        pos = player.pos;
+            if self.practice.is_none() {
+                match self.winner {
+                    Some(Winner::Me) => {
+                        if let Some(player) = &self.player {
+                            pos = player.pos;
+                        }
                     }
-                }
-                Some(Winner::Other(id)) => {
-                    if let Some(p) = self.remote_players.get(&id) {
-                        pos = p.get().pos;
+                    Some(Winner::Other(id)) => {
+                        if let Some(p) = self.remote_players.get(&id) {
+                            pos = p.get().pos;
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
-
-            if !self.practice {
-                self.geng.draw_2d(
-                    framebuffer,
-                    camera,
-                    &draw_2d::TexturedQuad::new(
-                        Aabb2::point(pos + vec2(0.0, 3.0 + (self.t * 2.0).sin() * 0.2))
-                            .extend_uniform(self.config.player_radius * 2.0),
-                        &self.assets.coots,
-                    ),
-                );
-            }
+            self.geng.draw_2d(
+                framebuffer,
+                camera,
+                &draw_2d::TexturedQuad::new(
+                    Aabb2::point(pos + vec2(0.0, 3.0 + (self.t * 2.0).sin() * 0.2))
+                        .extend_uniform(self.config.player_radius * 2.0),
+                    &self.assets.coots,
+                ),
+            );
         }
 
-        if !self.practice {
+        if self.practice.is_none() {
             for (&id, player) in self.remote_players.iter().take(50) {
                 self.draw_player_name(framebuffer, camera, &player.get(), Some(id));
             }
@@ -1038,8 +1060,12 @@ impl Game {
             self.draw_player_name(framebuffer, camera, player, None);
         }
 
-        if let Some(&pos) = self.level.cat_locations.get(self.round.track.to) {
-            if !camera_aabb.contains(pos) && !self.practice {
+        if let Some(&pos) = self
+            .level
+            .cat_locations
+            .get(self.practice.unwrap_or(self.round.track.to))
+        {
+            if !camera_aabb.contains(pos) {
                 let mut aabb = camera_aabb.extend_uniform(-self.config.arrow_size);
                 if aabb.max.x < aabb.min.x {
                     aabb.max.x = aabb.min.x;
@@ -1079,8 +1105,8 @@ impl Game {
         self.assets.font.draw_with_outline(
             framebuffer,
             ui_camera,
-            &if self.practice {
-                "SOLO PRACTICE MODE".to_owned()
+            &if let Some(to) = self.practice {
+                format!("SOLO PRACTICE MODE\n{}", self.config.cat_location_text[to])
             } else if self.player.is_some() {
                 self.config.cat_location_text[self.round.track.to].clone()
             } else if self.spectating {
@@ -1102,7 +1128,7 @@ impl Game {
             0.05,
             Rgba::BLACK,
         );
-        if !self.practice {
+        if self.practice.is_none() {
             if let Some((ref text, t)) = self.text {
                 self.assets.font.draw_with_outline(
                     framebuffer,
@@ -1632,7 +1658,7 @@ impl geng::State for Game {
         if settings_button.was_clicked() {
             self.in_settings = true;
             self.ready = false;
-            if self.practice {
+            if self.practice.is_some() {
                 self.player = None;
                 self.spectating = true;
             }
@@ -1691,14 +1717,14 @@ impl geng::State for Game {
             if play_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = true;
-                self.practice = false;
+                self.practice = None;
                 self.connection.send(ClientMessage::Name(self.name.clone()));
                 self.connection.send(ClientMessage::Ready(true));
             }
             if practice_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = false;
-                self.practice = true;
+                self.practice = Some(thread_rng().gen_range(0..self.level.cat_locations.len()));
                 self.spectating = false;
                 if self.player.is_none() {
                     self.player = Some(Player {
