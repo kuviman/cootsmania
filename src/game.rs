@@ -93,6 +93,7 @@ pub struct UiAssets {
 #[derive(geng::Assets)]
 pub struct Shaders {
     foo: ugli::Program,
+    outline: ugli::Program,
     texture_instancing: ugli::Program,
 }
 
@@ -661,6 +662,78 @@ impl Game {
         }
     }
 
+    fn draw_player_outline(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &geng::Camera2d,
+        player: &Player,
+    ) {
+        let background_pos = Aabb2::point(vec2::ZERO).extend_symmetric({
+            let size = self.assets.map_floor.size().map(|x| x as f32);
+            vec2(size.x / size.y, 1.0) * self.config.map_scale
+        });
+        let mut draw_texture = |texture: &ugli::Texture, matrix: mat3<f32>, car: bool| {
+            ugli::draw(
+                framebuffer,
+                &self.assets.shaders.outline,
+                ugli::DrawMode::TriangleFan,
+                &self.quad_geometry,
+                (
+                    ugli::uniforms! {
+                        u_color: {
+                            let c: Rgba<f32> = Hsva::new(player.color, 1.0, 1.0,1.0).into();
+                            c
+                        },
+                        u_texture: texture,
+                        u_furniture: &self.assets.map_furniture_front,
+                        u_matrix: matrix,
+                        u_background_pos: background_pos.bottom_left(),
+                        u_background_size: background_pos.size(),
+                    },
+                    geng::camera2d_uniforms(camera, self.framebuffer_size),
+                ),
+                ugli::DrawParameters {
+                    stencil_mode: if car {
+                        None
+                    } else {
+                        Some(ugli::StencilMode::always(ugli::FaceStencilMode {
+                            test: ugli::StencilTest {
+                                condition: ugli::Condition::NotEqual,
+                                reference: 1,
+                                mask: 0xff,
+                            },
+                            op: ugli::StencilOp::always(ugli::StencilOpFunc::Keep),
+                        }))
+                    },
+                    blend_mode: Some(ugli::BlendMode::straight_alpha()),
+                    ..default()
+                },
+            );
+        };
+        if let Some(texture) = self.assets.player.get(player.skin) {
+            draw_texture(
+                texture,
+                mat3::translate(player.pos + vec2(0.0, self.config.player_radius))
+                    * mat3::scale_uniform(self.config.player_radius / std::f32::consts::SQRT_2),
+                false,
+            );
+        }
+        draw_texture(
+            &self.assets.car,
+            mat3::translate(player.pos + vec2(0.0, 0.4))
+                * mat3::scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                * mat3::rotate(player.rot),
+            true,
+        );
+        draw_texture(
+            &self.assets.car_color,
+            mat3::translate(player.pos + vec2(0.0, 0.4))
+                * mat3::scale(self.config.player_direction_scale * self.config.player_radius * 0.7)
+                * mat3::rotate(player.rot),
+            true,
+        );
+    }
+
     fn draw_player_name(
         &self,
         framebuffer: &mut ugli::Framebuffer,
@@ -1039,6 +1112,10 @@ impl Game {
             self.config.player_radius,
             true,
         );
+
+        if let Some(player) = &self.player {
+            self.draw_player_outline(framebuffer, camera, player);
+        }
 
         self.draw_particles(
             &self.drift_particles,
