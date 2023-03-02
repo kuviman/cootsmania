@@ -289,6 +289,7 @@ pub struct Game {
     next_player_update: f32,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
     practice: Option<usize>,
+    telecam: bool,
 }
 
 impl Game {
@@ -446,6 +447,7 @@ impl Game {
             next_player_update: 0.0,
             show_player_names: preferences::load("show_player_names").unwrap_or(true),
             practice: None,
+            telecam: true,
         }
     }
 
@@ -698,6 +700,15 @@ impl Game {
                 }
             }
         }
+
+        let players_aabb = if self.remote_players.is_empty() {
+            None
+        } else {
+            Some(Aabb2::points_bounding_box(
+                self.remote_players.values().map(|player| player.pos.get()),
+            ))
+        };
+
         if self.spectating {
             if let Some(Winner::Other(id)) = self.winner {
                 if let Some(p) = self.remote_players.get(&id) {
@@ -732,10 +743,38 @@ impl Game {
                     self.level.segments.iter().copied().flatten(),
                 ));
             } else {
-                self.camera.center += (vec2::ZERO - self.camera.center)
+                let target_center = if let Some(aabb) = players_aabb.filter(|_| self.telecam) {
+                    aabb.center()
+                } else {
+                    vec2::ZERO
+                };
+                self.camera.center += (target_center - self.camera.center)
                     * (self.config.camera_speed * delta_time).min(1.0);
             }
         }
+
+        let target_fov = if !self.spectating {
+            self.config.camera_fov
+        } else if let Some(Winner::Other(_)) = self.winner {
+            self.config.camera_fov
+        } else if self.telecam {
+            // pgorley says to add more unwraps
+            players_aabb.map_or(self.config.map_scale * 2.0, |aabb| {
+                partial_max(
+                    aabb.height() + self.config.camera_fov,
+                    (aabb.width() + self.config.camera_fov) * self.framebuffer_size.y
+                        / self.framebuffer_size.x,
+                )
+            })
+        } else if self.spectate_zoomed_in {
+            self.config.camera_fov
+        } else {
+            self.config.map_scale * 2.0
+        };
+        dbg!(target_fov);
+        self.camera.fov +=
+            (target_fov - self.camera.fov) * (self.config.zoom_speed * delta_time).min(1.0);
+
         let player = match &mut self.player {
             Some(player) => player,
             None => {
@@ -1493,18 +1532,6 @@ impl geng::State for Game {
         }
 
         self.cat_move_time -= delta_time;
-
-        let target_fov = if !self.spectating {
-            self.config.camera_fov
-        } else if let Some(Winner::Other(_)) = self.winner {
-            self.config.camera_fov
-        } else if self.spectate_zoomed_in {
-            self.config.camera_fov
-        } else {
-            self.config.map_scale * 2.0
-        };
-        self.camera.fov +=
-            (target_fov - self.camera.fov).clamp_abs(self.config.zoom_speed * delta_time);
 
         self.update_connection();
         for player in self.remote_players.values_mut() {

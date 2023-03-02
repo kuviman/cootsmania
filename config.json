@@ -25,7 +25,7 @@
     "server_recordings": false,
     "map_scale": 30,
     "new_session_time": 7,
-    "zoom_speed": 100,
+    "zoom_speed": 5,
     "bounce_sfx": {
         "min": 2,
         "max": 4,
