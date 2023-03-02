@@ -6,6 +6,8 @@
 
 [**PLAY THE GAME HERE**](https://kuviman.itch.io/cootsmania)
 
+[CHANGELOG](CHANGELOG.md)
+
 ![plan](assets/ui/simple.png)
 
 Use arrow keys to race around the house and get to Coots before other players do.
