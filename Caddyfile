@@ -1,0 +1,10 @@
+:80
+
+@websockets {
+	header Connection *Upgrade*
+	header Upgrade    websocket
+}
+reverse_proxy @websockets localhost:1155
+
+root * web
+file_server

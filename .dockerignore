@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# Allow actually needed files
+!/src/
+!/Cargo.toml
+!/assets/
+!/bots.data
+!/level.json
+!/config.json
+!/start.sh
+!/Caddyfile
