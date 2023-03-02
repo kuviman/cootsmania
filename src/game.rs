@@ -65,6 +65,7 @@ pub struct SfxAssets {
 pub struct UiAssets {
     play_unhovered: ugli::Texture,
     practice: ugli::Texture,
+    practice_unhovered: ugli::Texture,
     background: ugli::Texture,
     color: ugli::Texture,
     title: ugli::Texture,
@@ -1681,7 +1682,12 @@ impl geng::State for Game {
                 1.0,
             );
 
-            let practice_button = TextureButton::new(cx, &self.assets.ui.practice, 1.0);
+            let practice_button = TextureButton::new2(
+                cx,
+                &self.assets.ui.practice_unhovered,
+                &self.assets.ui.practice,
+                1.0,
+            );
             if play_button.was_clicked() {
                 self.in_settings = false;
                 self.ready = true;
