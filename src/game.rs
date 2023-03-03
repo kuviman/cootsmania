@@ -1031,8 +1031,18 @@ impl Game {
             self.text = Some(("STOP!".to_owned(), 0.0));
         }
 
-        self.camera.center +=
-            (player.pos - self.camera.center) * (self.config.camera_speed * delta_time).min(1.0);
+        let mut target_camera_center = player.pos;
+        if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+            if let Some(axis) = gamepad.axis_data(gilrs::Axis::RightStickX) {
+                target_camera_center.x += axis.value() * self.camera.fov * 0.5;
+            }
+            if let Some(axis) = gamepad.axis_data(gilrs::Axis::RightStickY) {
+                target_camera_center.y += axis.value() * self.camera.fov * 0.5;
+            }
+        }
+
+        self.camera.center += (target_camera_center - self.camera.center)
+            * (self.config.camera_speed * delta_time).min(1.0);
     }
 
     fn draw_game(&mut self, framebuffer: &mut ugli::Framebuffer) {
