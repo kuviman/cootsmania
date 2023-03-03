@@ -14,9 +14,9 @@ ARG CONNECT
 COPY . .
 RUN touch src/main.rs && \
     cargo geng build --release --web && \
-    mv target/geng target/web && cp config.json level.json target/web/ && \
+    mv target/geng target/web && \
     cargo geng build --release && \
-    mv target/geng target/server && cp config.json level.json bots.data target/server/ && \
+    mv target/geng target/server && \
     echo DONE
 
 # Now create a small image
