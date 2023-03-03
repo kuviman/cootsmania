@@ -44,15 +44,18 @@ Then just running `cargo run --release` should compile (for a while) and start t
 Easiest way to run your own server is to use provided [Dockerfile](Dockerfile).
 It starts actual server and also serves the web client.
 
-You will need to provide it with `CONNECT` build arg with address
-where the web client should attempt connecting.
-
 Example usage:
 
 ```sh
-docker build --build-arg CONNECT=ws://localhost:8080 -t cootsmania .
+docker build -t cootsmania .
 docker run --rm -it -p 8080:80 cootsmania
 # Now open http://localhost:8080
+```
+
+Or just pull the already built image:
+
+```sh
+docker run --rm -it -p 8080:80 ghcr.io/kuviman/cootsmania
 ```
 
 Proxy via `nginx`/`caddy` to have https/wss.

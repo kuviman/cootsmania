@@ -117,13 +117,29 @@ fn main() {
     let mut args: Args = clap::Parser::parse();
 
     if args.connect.is_none() && args.server.is_none() {
-        if cfg!(target_arch = "wasm32") {
+        #[cfg(target_arch = "wasm32")]
+        {
             args.connect = Some(
                 option_env!("CONNECT")
-                    .expect("Set CONNECT compile time env var")
-                    .to_owned(),
+                    .filter(|addr| !addr.is_empty())
+                    .map(|addr| addr.to_owned())
+                    .unwrap_or_else(|| {
+                        let window = web_sys::window().unwrap();
+                        let location = window.location();
+                        let mut new_uri = String::new();
+                        if location.protocol().unwrap() == "https" {
+                            new_uri += "wss://";
+                        } else {
+                            new_uri += "ws://";
+                        }
+                        new_uri += &location.host().unwrap();
+                        new_uri += &location.pathname().unwrap();
+                        new_uri
+                    }),
             );
-        } else {
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
             args.server = Some("127.0.0.1:1155".to_owned());
             args.connect = Some("ws://127.0.0.1:1155".to_owned());
         }
