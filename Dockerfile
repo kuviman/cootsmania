@@ -1,5 +1,6 @@
 FROM kuviman/geng AS builder
 
+RUN apt update && apt install --yes libudev-dev
 WORKDIR /src
 # First create a layer with built dependencies to cache them in separate docker layer
 COPY Cargo.toml .
