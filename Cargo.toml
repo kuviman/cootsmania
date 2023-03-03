@@ -7,9 +7,6 @@ default-run = "cootsmania"
 [package.metadata.geng]
 assets = ["config.json", "level.json", "bots.data", "assets"]
 
-[profile.release]
-debug = true
-
 [dependencies]
 geng = { git = "https://github.com/kuviman/geng" }
 serde = "1"
