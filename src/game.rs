@@ -884,7 +884,10 @@ impl Game {
                     {
                         value -= 1.0;
                     }
-                    if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+                    if let Some(gamepad) = self
+                        .active_gamepad
+                        .and_then(|id| self.gilrs.connected_gamepad(id))
+                    {
                         if let Some(axis) = gamepad.axis_data(gilrs::Axis::LeftStickX) {
                             value -= axis.value();
                         }
@@ -903,7 +906,10 @@ impl Game {
                     {
                         value += 1.0;
                     }
-                    if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+                    if let Some(gamepad) = self
+                        .active_gamepad
+                        .and_then(|id| self.gilrs.connected_gamepad(id))
+                    {
                         if let Some(button) = gamepad.button_data(gilrs::Button::LeftTrigger) {
                             value -= button.value();
                         }
@@ -1032,7 +1038,10 @@ impl Game {
         }
 
         let mut target_camera_center = player.pos;
-        if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+        if let Some(gamepad) = self
+            .active_gamepad
+            .and_then(|id| self.gilrs.connected_gamepad(id))
+        {
             if let Some(axis) = gamepad.axis_data(gilrs::Axis::RightStickX) {
                 target_camera_center.x += axis.value() * self.camera.fov * 0.5;
             }

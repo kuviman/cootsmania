@@ -10,7 +10,11 @@ assets = ["config.json", "level.json", "bots.data", "assets"]
 [dependencies]
 geng = { git = "https://github.com/kuviman/geng" }
 serde = "1"
-gilrs = "0.10"
+
+# https://gitlab.com/gilrs-project/gilrs/-/merge_requests/84geng = { git = "https://github.com/kuviman/geng" }
+[dependencies.gilrs]
+git = "https://gitlab.com/kuviman/gilrs"
+branch = "wasm-fix"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustrict = "0.5"
