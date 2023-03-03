@@ -97,7 +97,7 @@ pub struct Config {
     pub forward_speed_change: f64,
 }
 
-#[derive(clap::Parser)]
+#[derive(clap::Parser, Debug)]
 pub struct Args {
     #[clap(long)]
     pub server: Option<String>,
@@ -114,7 +114,7 @@ pub struct Args {
 fn main() {
     logger::init().unwrap();
     geng::setup_panic_handler();
-    let mut args: Args = clap::Parser::parse();
+    let mut args: Args = program_args::parse();
 
     if args.connect.is_none() && args.server.is_none() {
         #[cfg(target_arch = "wasm32")]
