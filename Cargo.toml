@@ -10,6 +10,7 @@ debug = true
 [dependencies]
 geng = { git = "https://github.com/kuviman/geng" }
 serde = "1"
+gilrs = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustrict = "0.5"

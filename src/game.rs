@@ -293,6 +293,8 @@ pub struct Game {
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
     practice: Option<usize>,
     telecam: bool,
+    gilrs: gilrs::Gilrs,
+    active_gamepad: Option<gilrs::GamepadId>,
 }
 
 impl Game {
@@ -394,6 +396,7 @@ impl Game {
             assets: assets.clone(),
             level,
             connection,
+            active_gamepad: None,
             config: config.clone(),
             player: args.editor.then_some(Player {
                 skin,
@@ -451,6 +454,7 @@ impl Game {
             show_player_names: preferences::load("show_player_names").unwrap_or(true),
             practice: None,
             telecam: true,
+            gilrs: gilrs::Gilrs::new().unwrap(),
         }
     }
 
@@ -846,7 +850,6 @@ impl Game {
         } else {
             self.config.map_scale * 2.0
         };
-        dbg!(target_fov);
         self.camera.fov +=
             (target_fov - self.camera.fov) * (self.config.zoom_speed * delta_time).min(1.0);
 
@@ -864,6 +867,10 @@ impl Game {
             let delta_time = 1.0 / 200.0;
             self.next_player_update += delta_time;
 
+            while let Some(event) = self.gilrs.next_event() {
+                self.active_gamepad = Some(event.id);
+            }
+
             let input = PlayerInput {
                 rotate: {
                     let mut value: f32 = 0.0;
@@ -876,6 +883,11 @@ impl Game {
                         || self.geng.window().is_key_pressed(geng::Key::D)
                     {
                         value -= 1.0;
+                    }
+                    if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+                        if let Some(axis) = gamepad.axis_data(gilrs::Axis::LeftStickX) {
+                            value -= axis.value();
+                        }
                     }
                     value.clamp(-1.0, 1.0)
                 },
@@ -890,6 +902,20 @@ impl Game {
                         || self.geng.window().is_key_pressed(geng::Key::W)
                     {
                         value += 1.0;
+                    }
+                    if let Some(gamepad) = self.active_gamepad.map(|id| self.gilrs.gamepad(id)) {
+                        if let Some(button) = gamepad.button_data(gilrs::Button::LeftTrigger) {
+                            value -= button.value();
+                        }
+                        if let Some(button) = gamepad.button_data(gilrs::Button::LeftTrigger2) {
+                            value -= button.value();
+                        }
+                        if let Some(button) = gamepad.button_data(gilrs::Button::RightTrigger) {
+                            value += button.value();
+                        }
+                        if let Some(button) = gamepad.button_data(gilrs::Button::RightTrigger2) {
+                            value += button.value();
+                        }
                     }
                     value.clamp(-1.0, 1.0)
                 },
