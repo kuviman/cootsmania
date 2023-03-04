@@ -9,25 +9,33 @@ pub struct TextureButton<'a> {
 }
 
 impl<'a> TextureButton<'a> {
-    pub fn new(cx: &'a geng::ui::Controller, texture: &'a ugli::Texture, size: f64) -> Self {
-        let sense: &'a mut geng::ui::Sense = cx.get_state();
-        Self {
-            clicked: sense.take_clicked(),
-            sense,
-            texture,
-            hover_texture: texture,
-            size,
-        }
+    pub fn new(
+        cx: &'a geng::ui::Controller,
+        texture: &'a ugli::Texture,
+        sfx: &'a game::UiSfxAssets,
+        size: f64,
+    ) -> Self {
+        Self::new2(cx, texture, texture, sfx, size)
     }
     pub fn new2(
         cx: &'a geng::ui::Controller,
         texture: &'a ugli::Texture,
         hover_texture: &'a ugli::Texture,
+        sfx: &'a game::UiSfxAssets,
         size: f64,
     ) -> Self {
         let sense: &'a mut geng::ui::Sense = cx.get_state();
+        let clicked = sense.take_clicked();
+        if clicked {
+            sfx.click.play();
+        }
+        let last_hover: &'a mut bool = cx.get_state();
+        if *last_hover != sense.is_hovered() {
+            *last_hover = sense.is_hovered();
+            sfx.hover.play();
+        }
         Self {
-            clicked: sense.take_clicked(),
+            clicked,
             sense,
             texture,
             hover_texture,
@@ -170,14 +178,29 @@ impl<'a> CustomSlider<'a> {
 
     pub fn new(
         cx: &'a geng::ui::Controller,
+        assets: &'a game::Assets,
         line_texture: &'a ugli::Texture,
         knob_texture: &'a ugli::Texture,
         value: f64,
         range: RangeInclusive<f64>,
         f: Box<dyn FnMut(f64) + 'a>,
     ) -> Self {
+        let sense: &'a mut geng::ui::Sense = cx.get_state();
+        let last_hover: &'a mut bool = cx.get_state();
+        if *last_hover != sense.is_hovered() {
+            *last_hover = sense.is_hovered();
+            assets.ui.sfx.hover.play();
+        }
+        let sfx: &'a mut Option<geng::SoundEffect> = cx.get_state();
+        if sense.is_captured() {
+            if sfx.is_none() {
+                *sfx = Some(assets.sfx.forward_move.play());
+            }
+        } else if let Some(mut sfx) = sfx.take() {
+            sfx.stop();
+        }
         CustomSlider {
-            sense: cx.get_state(),
+            sense,
             line_texture,
             knob_texture,
             tick_radius: cx.get_state(),

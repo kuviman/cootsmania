@@ -62,7 +62,18 @@ pub struct SfxAssets {
 }
 
 #[derive(geng::Assets)]
+pub struct UiSfxAssets {
+    #[asset(ext = "mp3")]
+    pub click: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub hover: geng::Sound,
+    #[asset(ext = "mp3")]
+    pub slider: geng::Sound,
+}
+
+#[derive(geng::Assets)]
 pub struct UiAssets {
+    pub sfx: UiSfxAssets,
     telecam_on: ugli::Texture,
     telecam_off: ugli::Texture,
     play_unhovered: ugli::Texture,
@@ -111,7 +122,7 @@ pub struct Assets {
     player: Vec<ugli::Texture>,
     car: ugli::Texture,
     car_color: ugli::Texture,
-    ui: UiAssets,
+    pub ui: UiAssets,
     #[asset(path = "music/Ludwig23_Medium.mp3", postprocess = "make_looped")]
     music: geng::Sound,
     #[asset(
@@ -1824,7 +1835,8 @@ impl geng::State for Game {
     fn ui<'a>(&'a mut self, cx: &'a geng::ui::Controller) -> Box<dyn geng::ui::Widget + 'a> {
         use geng::ui::*;
         let padding = 0.5;
-        let settings_button = TextureButton::new(cx, &self.assets.ui.settings, 1.0);
+        let settings_button =
+            TextureButton::new(cx, &self.assets.ui.settings, &self.assets.ui.sfx, 1.0);
         if settings_button.was_clicked() {
             self.in_settings = true;
             self.ready = false;
@@ -1842,6 +1854,7 @@ impl geng::State for Game {
             } else {
                 &self.assets.ui.telecam_off
             },
+            &self.assets.ui.sfx,
             1.0,
         );
         if telecam_checkbox.was_clicked() {
@@ -1864,6 +1877,7 @@ impl geng::State for Game {
                     } else {
                         &self.assets.ui.names_uncheck
                     },
+                    &self.assets.ui.sfx,
                     1.0,
                 );
                 if button.was_clicked() {
@@ -1880,6 +1894,7 @@ impl geng::State for Game {
                     } else {
                         &self.assets.ui.music_uncheck
                     },
+                    &self.assets.ui.sfx,
                     1.0,
                 );
                 if button.was_clicked() {
@@ -1892,6 +1907,7 @@ impl geng::State for Game {
                 cx,
                 &self.assets.ui.play_unhovered,
                 &self.assets.ui.play,
+                &self.assets.ui.sfx,
                 1.0,
             );
 
@@ -1899,6 +1915,7 @@ impl geng::State for Game {
                 cx,
                 &self.assets.ui.practice_unhovered,
                 &self.assets.ui.practice,
+                &self.assets.ui.sfx,
                 1.0,
             );
             if play_button.was_clicked() {
@@ -1931,12 +1948,14 @@ impl geng::State for Game {
                 .fixed_size(vec2(2.0, 1.0) * 1.5)
                 .padding_top(-padding);
 
-            let skin_button_previous = TextureButton::new(cx, &self.assets.ui.left, 1.0);
+            let skin_button_previous =
+                TextureButton::new(cx, &self.assets.ui.left, &self.assets.ui.sfx, 1.0);
             if skin_button_previous.was_clicked() {
                 self.skin = (self.skin + self.assets.player.len() - 1) % self.assets.player.len();
                 preferences::save("skin", &self.skin);
             }
-            let skin_button_next = TextureButton::new(cx, &self.assets.ui.right, 1.0);
+            let skin_button_next =
+                TextureButton::new(cx, &self.assets.ui.right, &self.assets.ui.sfx, 1.0);
             if skin_button_next.was_clicked() {
                 self.skin = (self.skin + 1) % self.assets.player.len();
                 preferences::save("skin", &self.skin);
@@ -1996,6 +2015,7 @@ impl geng::State for Game {
                         .center(),
                     CustomSlider::new(
                         cx,
+                        &self.assets,
                         &self.assets.ui.slider_line,
                         &self.assets.ui.slider_knob,
                         self.color as f64,
@@ -2029,6 +2049,7 @@ impl geng::State for Game {
                     .center(),
                 CustomSlider::new(
                     cx,
+                    &self.assets,
                     &self.assets.ui.volume_slider_line,
                     &self.assets.ui.slider_knob,
                     self.volume,
