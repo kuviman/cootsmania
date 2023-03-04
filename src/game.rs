@@ -776,6 +776,7 @@ impl Game {
                             break new;
                         }
                     });
+                    self.assets.sfx.new_round.play();
                 }
             }
         }
