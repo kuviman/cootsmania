@@ -1253,11 +1253,31 @@ impl Game {
                     pos.y.clamp(aabb.min.y, aabb.max.y),
                 );
 
+                let size = self.config.arrow_size * {
+                    let t = (self.t / 1.0).fract();
+                    if t > 0.5 {
+                        1.0
+                    } else {
+                        fn shake(t: f32, strength: f32, vibrato: usize) -> f32 {
+                            (t * f32::PI * vibrato as f32).sin() * strength + 1.0
+                        }
+                        fn lerp(range: Range<f32>, t: f32) -> f32 {
+                            range.start * (1.0 - t) + range.end * t
+                        }
+                        fn ease_out_cubic(t: f32) -> f32 {
+                            1.0 - (1.0 - t).powi(3)
+                        }
+                        fn fadeout(t: f32, value: f32) -> f32 {
+                            lerp(value..1.0, ease_out_cubic(t))
+                        }
+                        fadeout(t, shake(t * 2.0, 0.1, 5))
+                    }
+                };
                 self.geng.draw_2d(
                     framebuffer,
                     camera,
                     &draw_2d::TexturedQuad::unit(&self.assets.arrow)
-                        .scale_uniform(self.config.arrow_size)
+                        .scale_uniform(size)
                         .rotate((pos - arrow_pos).arg())
                         .translate(arrow_pos),
                 );
@@ -1265,7 +1285,7 @@ impl Game {
                     framebuffer,
                     camera,
                     &draw_2d::TexturedQuad::unit(&self.assets.coots)
-                        .scale_uniform(self.config.arrow_size * 0.5)
+                        .scale_uniform(size * 0.5)
                         .translate(arrow_pos),
                 );
             }
