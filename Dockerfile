@@ -6,8 +6,8 @@ WORKDIR /src
 COPY Cargo.toml .
 RUN mkdir src && \
     echo "fn main() {}" > src/main.rs && \
-    cargo geng build --release && \
-    cargo geng build --release --web && \
+    cargo build --release && \
+    cargo build --release --target wasm32-unknown-unknown && \
     rm -rf src
 # Now actually compile the project
 ARG CONNECT
