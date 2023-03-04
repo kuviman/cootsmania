@@ -182,31 +182,24 @@ fn main() {
             theme.text_size = 1.0;
             theme
         });
-        geng::run(
-            &geng,
-            geng::LoadingScreen::new(&geng, geng::EmptyLoadingScreen, {
-                let geng = geng.clone();
-                async move {
-                    let assets: game::Assets = geng
-                        .load_asset(run_dir().join("assets"))
-                        .await
-                        .expect("Failed to load assets");
-                    let assets = Rc::new(assets);
-                    let config: Config = geng
-                        .load_asset(run_dir().join("config.json"))
-                        .await
-                        .expect("Failed to load config");
-                    let config = Rc::new(config);
-                    let level: Level = geng
-                        .load_asset(run_dir().join("level.json"))
-                        .await
-                        .expect("Failed to load level");
-                    let connection =
-                        geng::net::client::connect(args.connect.as_deref().unwrap()).await;
-                    game::Game::new(&geng, &assets, level, &config, connection, args)
-                }
-            }),
-        );
+        geng.clone().run_loading(async move {
+            let assets: game::Assets = geng
+                .load_asset(run_dir().join("assets"))
+                .await
+                .expect("Failed to load assets");
+            let assets = Rc::new(assets);
+            let config: Config = geng
+                .load_asset(run_dir().join("config.json"))
+                .await
+                .expect("Failed to load config");
+            let config = Rc::new(config);
+            let level: Level = geng
+                .load_asset(run_dir().join("level.json"))
+                .await
+                .expect("Failed to load level");
+            let connection = geng::net::client::connect(args.connect.as_deref().unwrap()).await;
+            game::Game::new(&geng, &assets, level, &config, connection, args)
+        });
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((server_handle, server_thread)) = server {
