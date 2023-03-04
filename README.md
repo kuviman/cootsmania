@@ -56,6 +56,7 @@ Or just pull the already built image:
 
 ```sh
 docker run --rm -it -p 8080:80 ghcr.io/kuviman/cootsmania
+# Now open http://localhost:8080
 ```
 
 Proxy via `nginx`/`caddy` to have https/wss.
