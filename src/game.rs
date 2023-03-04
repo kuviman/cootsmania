@@ -1292,6 +1292,24 @@ impl Game {
             0.05,
             Rgba::BLACK,
         );
+        if let Some(cat) = self.practice {
+            let cat = self.level.cat_locations[cat];
+            if let Some(player) = &self.player {
+                if (player.pos - cat).len() < self.config.player_radius * 2.0 {
+                    self.assets.font.draw_with_outline(
+                        framebuffer,
+                        ui_camera,
+                        "STOP!",
+                        vec2(0.0, 2.0),
+                        geng::TextAlign::CENTER,
+                        1.0,
+                        Rgba::WHITE,
+                        0.05,
+                        Rgba::BLACK,
+                    );
+                }
+            }
+        }
         if self.practice.is_none() {
             if let Some((ref text, t)) = self.text {
                 self.assets.font.draw_with_outline(
