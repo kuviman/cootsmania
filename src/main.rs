@@ -197,7 +197,9 @@ fn main() {
                 .load_asset(run_dir().join("level.json"))
                 .await
                 .expect("Failed to load level");
-            let connection = geng::net::client::connect(args.connect.as_deref().unwrap()).await;
+            let connection = geng::net::client::connect(args.connect.as_deref().unwrap())
+                .await
+                .expect("Failed to connect to the server");
             game::Game::new(&geng, &assets, level, &config, connection, args)
         });
 

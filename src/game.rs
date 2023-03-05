@@ -471,6 +471,7 @@ impl Game {
 
     fn update_connection(&mut self) {
         while let Some(message) = self.connection.try_recv() {
+            let message = message.unwrap();
             match &message {
                 ServerMessage::Pong => {}
                 ServerMessage::UpdatePlayer(..) => {}

@@ -9,3 +9,4 @@ After 10 day jam dev period:
 - Gamepad support
 - Make coots indicator on the edge of the screen shake a bit
 - Sound effects in the menu
+- Show error on connection failure
