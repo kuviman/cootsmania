@@ -306,6 +306,7 @@ pub struct Game {
     telecam: bool,
     gilrs: gilrs::Gilrs,
     active_gamepad: Option<gilrs::GamepadId>,
+    round_countdown: f32,
 }
 
 impl Game {
@@ -466,6 +467,7 @@ impl Game {
             practice: None,
             telecam: true,
             gilrs: gilrs::Gilrs::new().unwrap(),
+            round_countdown: 0.0,
         }
     }
 
@@ -529,7 +531,7 @@ impl Game {
                         });
                         self.spectating = false;
                         self.assets.sfx.new_round.play();
-                        self.text = Some(("GO".to_owned(), 0.0));
+                        // self.text = Some(("GO".to_owned(), 0.0));
                     }
                 }
                 ServerMessage::RoundStarted => {
@@ -558,6 +560,7 @@ impl Game {
                             + &self.config.cat_location_text[self.round.track.to],
                         -2.0,
                     ));
+                    self.round_countdown = 3.0;
                 }
                 ServerMessage::YouHaveBeenQualified => {
                     if !self.args.editor && self.practice.is_none() {
@@ -1347,7 +1350,7 @@ impl Game {
                 self.assets.font.draw_with_outline(
                     framebuffer,
                     ui_camera,
-                    &text,
+                    text,
                     vec2(0.0, 2.0),
                     geng::TextAlign::CENTER,
                     1.0,
@@ -1360,13 +1363,83 @@ impl Game {
                 self.assets.font.draw_with_outline(
                     framebuffer,
                     ui_camera,
-                    &text,
+                    text,
                     vec2(0.0, 0.0),
                     geng::TextAlign::CENTER,
                     1.0,
                     Rgba::WHITE,
                     0.05,
                     Rgba::BLACK,
+                );
+            }
+            if self.round.num == 0 && self.round_countdown > 0.0 {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    "GET READY",
+                    vec2(0.0, -1.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.3,
+                    Rgba::BLACK,
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    "GET READY",
+                    vec2(0.0, -1.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.1,
+                    Rgba::WHITE,
+                );
+            } else if !self.spectating && self.round_countdown > 0.0 {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &(self.round_countdown.ceil() as i32).to_string(),
+                    vec2(0.0, -1.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.3,
+                    Rgba::BLACK,
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    &(self.round_countdown.ceil() as i32).to_string(),
+                    vec2(0.0, -1.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.1,
+                    Rgba::WHITE,
+                );
+            } else if !self.spectating && self.round_countdown > -1.0 {
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    "GO",
+                    vec2(0.0, 2.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.3,
+                    Rgba::BLACK,
+                );
+                self.assets.font.draw_with_outline(
+                    framebuffer,
+                    ui_camera,
+                    "GO",
+                    vec2(0.0, 2.0),
+                    geng::TextAlign::CENTER,
+                    2.0,
+                    Rgba::WHITE,
+                    0.1,
+                    Rgba::WHITE,
                 );
             }
             let padding = 0.2;
@@ -1675,6 +1748,8 @@ impl Game {
 impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
+
+        self.round_countdown -= delta_time;
 
         self.drift_particles.update(delta_time);
         self.bounce_particles.update(delta_time);
