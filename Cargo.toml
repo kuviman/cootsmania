@@ -13,8 +13,7 @@ serde = "1"
 
 # https://gitlab.com/gilrs-project/gilrs/-/merge_requests/84geng = { git = "https://github.com/kuviman/geng" }
 [dependencies.gilrs]
-git = "https://gitlab.com/kuviman/gilrs"
-branch = "wasm-fix"
+git = "https://gitlab.com/gilrs-project/gilrs"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustrict = "0.5"
