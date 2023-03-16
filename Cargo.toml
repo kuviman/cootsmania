@@ -8,10 +8,10 @@ default-run = "cootsmania"
 assets = ["config.json", "level.json", "bots.data", "assets"]
 
 [dependencies]
-geng = { git = "https://github.com/kuviman/geng" }
+geng = { git = "https://github.com/kuviman/geng", rev = "e5da7c432e52e376d6a975f80a28381f0a7a7c4b" }
 serde = "1"
 
-# https://gitlab.com/gilrs-project/gilrs/-/merge_requests/84geng = { git = "https://github.com/kuviman/geng" }
+# https://gitlab.com/gilrs-project/gilrs/-/merge_requests/84
 [dependencies.gilrs]
 git = "https://gitlab.com/gilrs-project/gilrs"
 
