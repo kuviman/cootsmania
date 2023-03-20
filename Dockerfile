@@ -1,4 +1,4 @@
-FROM kuviman/geng AS builder
+FROM kuviman/geng:coots AS builder
 
 RUN apt update && apt install --yes libudev-dev
 WORKDIR /src
